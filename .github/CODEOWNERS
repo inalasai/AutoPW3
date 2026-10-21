@@ -1,0 +1,9 @@
+# Security-sensitive paths require owner review
+/supabase/migrations/   @inalasai
+/supabase/tests/        @inalasai
+/apps/worker/src/providers/tesla/   @inalasai
+/apps/worker/src/services/tokens/   @inalasai
+/apps/worker/src/services/commands/ @inalasai
+/apps/worker/src/middleware/        @inalasai
+/docs/ai-build-kit/02-PROJECT-CONTEXT.md @inalasai
+/AGENTS.md              @inalasai

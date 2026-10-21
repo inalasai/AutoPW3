@@ -1,0 +1,114 @@
+# AutoPW3 — AI Build Kit
+
+A phased set of instructions for building AutoPW3, a subscription-free residential energy-management web app for Tesla Powerwall sites, using an AI coding assistant. The kit lives in this repository so every AI session works from files, not chat history.
+
+Works with Claude Code, Gemini, ChatGPT/Codex or any coding assistant. Agents that can read/write files and run commands work best.
+
+## Contents
+
+| Path | Purpose |
+|---|---|
+| `AGENTS.md`, `CLAUDE.md` (repo root) | Auto-loaded agent rules |
+| `docs/ai-build-kit/00-README.md` | This guide and progress tracker |
+| `docs/ai-build-kit/01-REVIEW-AND-CHANGES.md` | Review of the original spec and what changed |
+| `docs/ai-build-kit/02-PROJECT-CONTEXT.md` | Non-negotiable project rules |
+| `docs/ai-build-kit/03-HANDOFF-TEMPLATE.md` | Handoff report format |
+| `docs/ai-build-kit/04-REPO-STRUCTURE.md` | Code layout, import rules, git workflow, where each task writes |
+| `docs/ai-build-kit/tasks/TASK-00 … TASK-21` | One prompt per task |
+| `docs/handoffs/` | Handoff reports (one per task) |
+| `docs/research/` | TASK-00 outputs |
+| `docs/DECISIONS.md`, `docs/KNOWN_LIMITATIONS.md` | Append-only registers |
+| `.github/pull_request_template.md`, `CODEOWNERS` | Review gates |
+| `README.md`, `CONTRIBUTING.md`, `SECURITY.md` (repo root) | Project front page, workflow, vulnerability reporting |
+| `.env.example`, `.gitignore`, `.editorconfig` (repo root) | Placeholder config, secret-safe ignores, editor settings |
+| `docs/CREDENTIALS.md`, `docs/TESTING.md`, `docs/README.md` | Secrets handling, test strategy, doc index |
+| `apps/*/README.md`, `packages/*/README.md`, `supabase/README.md`, `e2e/README.md`, `scripts/README.md` | Where code goes in each folder, with rules |
+
+## Installing the kit into AutoPW3
+
+```bash
+git clone https://github.com/inalasai/AutoPW3.git
+cd AutoPW3
+git checkout -b chore/ai-build-kit
+unzip -n ../AutoPW3-ai-build-kit.zip -d .   # -n: never overwrite existing files
+git status                                  # review what was added
+git add .
+git commit -m "chore: add AI build kit"
+git push -u origin chore/ai-build-kit
+```
+
+If the repository already has `AGENTS.md`, `CLAUDE.md`, `.github/` files or a `docs/DECISIONS.md`, `unzip -n` leaves yours untouched. Merge the kit's content into them by hand. Add a line to your root `README.md` linking to `docs/ai-build-kit/00-README.md`.
+
+## Running a task
+
+1. Previous task's checks passed, work merged to `main`.
+2. Start a **fresh** AI session in the repo root (so `AGENTS.md` loads).
+3. Give this instruction, naming the task:
+
+   > Do TASK-NN. Read `AGENTS.md`, `docs/ai-build-kit/02-PROJECT-CONTEXT.md`, `docs/ai-build-kit/04-REPO-STRUCTURE.md`, the task file `docs/ai-build-kit/tasks/TASK-NN-….md` and the previous handoff in `docs/handoffs/`. Start with the plan step. Stop if a stop condition triggers.
+
+4. Review the plan. For migrations, RLS, tokens, commands and middleware, review the code yourself.
+5. Run the verification commands yourself. Do not accept "tests pass" without seeing output.
+6. Open a PR from `task-NN-<slug>` using the template. Merge when green. Tag `task-NN-done`.
+7. Tick the tracker below.
+
+Chat-only assistants: attach the same files and apply the output manually; the rules are identical.
+
+## Rules that save the most pain
+- The repository is the source of truth, not the conversation.
+- One major layer per task. Do not merge tasks.
+- Mocks first. Never test high-impact controls on real hardware until the integration is verified, and then only manually.
+- Never paste secrets into prompts or commit them.
+- Require complete files; if output truncates, resume at the exact file and line.
+- Ask for evidence: commands run, outputs, files changed.
+- Never move on if a critical security check or build fails.
+
+## Progress tracker
+
+**Phase 0 — Discovery and contract**
+- [ ] TASK-00 Tesla Fleet API feasibility spike (research only)
+- [ ] TASK-01 Architecture blueprint (ratifies `04-REPO-STRUCTURE.md`)
+
+**Phase 1 — Foundation**
+- [ ] TASK-02 Repository bootstrap
+- [ ] TASK-03 Database schema and migrations
+- [ ] TASK-04 RLS, grants, admin bootstrap, SQL security tests
+- [ ] TASK-05 Shared types and validation
+
+**Phase 2 — Frontend foundation**
+- [ ] TASK-06 Design system and app shell
+- [ ] TASK-07 Authentication and permission-aware UI
+
+**Phase 3 — Energy domain**
+- [ ] TASK-08 Telemetry model and demo provider
+- [ ] TASK-09 Animated Live View
+- [ ] TASK-10 Tariff engine
+- [ ] TASK-11 Accounting engine
+- [ ] TASK-12 Tariff manager UI
+- [ ] TASK-13 Analytics UI
+
+**Phase 4 — Backend and Tesla**
+- [ ] TASK-14 Worker API core
+- [ ] TASK-15 Tesla adapter and OAuth
+- [ ] TASK-16 Telemetry ingestion
+
+**Phase 5 — Controls and operations**
+- [ ] TASK-17 Device controls
+- [ ] TASK-18 Automation engine
+- [ ] TASK-19 Administration and audit
+
+**Phase 6 — Release**
+- [ ] TASK-20 Security audit and end-to-end tests
+- [ ] TASK-21 Deployment and release
+
+## Tasks that must stay separate
+
+| Tasks | Why |
+|---|---|
+| 00–01 | Feasibility findings must shape the architecture |
+| 03–04 | Schema must be reviewed before security policies are layered on |
+| 05–07 | Shared types and auth affect every later feature |
+| 08–13 | Financial correctness depends on earlier contracts |
+| 14–16 | Different failure modes: API authz, OAuth, ingestion |
+| 17–19 | Controls, scheduling and admin each need independent security tests |
+| 20 | Independent final review, in a fresh session |
