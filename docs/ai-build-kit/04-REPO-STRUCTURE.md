@@ -1,6 +1,14 @@
 # Repository Structure and Conventions
 
-Status: **proposed default**. TASK-01 must ratify or amend it and record any change in `docs/DECISIONS.md`. TASK-02 creates it. Every later task puts code where this document says.
+Status: **ratified with amendments by TASK-01, pending owner approval** (D-019, D-020, D-021 in `docs/DECISIONS.md`). TASK-02 creates it. Every later task puts code where this document says.
+
+Amendments made by TASK-01 (details and rationale in `docs/DECISIONS.md`):
+- D-019: workspaces, package names and import direction ratified unchanged.
+- D-020: the Worker config file is `apps/worker/wrangler.jsonc` (a current supported format), not `wrangler.toml`.
+- D-021: there is **one deployed Cloudflare Worker**. It serves the built web app as static assets (`assets.directory` pointing at the `apps/web` build output), the `/api/v1/*` routes and the `scheduled` handler. There is no separate Pages project.
+- `docs/UNRESOLVED_QUESTIONS.md` is a design document owned by TASK-01.
+- `apps/web/public/` holds static files copied as-is into the build (`_headers`, `_redirects`, `.well-known/`).
+- Job, lock and provider-usage database functions (`claim_jobs`, `acquire_lock`, `release_lock`, usage counters) are migrations written in TASK-16, alongside the ingestion service.
 
 ## 1. Layout
 The folders below already exist in the repository with a README each (and `.gitkeep` in empty leaves). TASK-02 adds the toolchain; later tasks add code. Keep each folder's README accurate.
@@ -24,6 +32,7 @@ AutoPW3/
 │  ├─ web/                        # React + Vite + Tailwind
 │  │  ├─ index.html
 │  │  ├─ vite.config.ts
+│  │  ├─ public/                  # _headers, _redirects, .well-known/ (static, copied as-is)
 │  │  └─ src/
 │  │     ├─ app/                  # router, providers, layout, route config
 │  │     ├─ components/ui/        # design system only (no energy logic)
@@ -39,7 +48,7 @@ AutoPW3/
 │  │     ├─ lib/                  # api client, supabase client, config
 │  │     └─ styles/               # tokens, tailwind layers
 │  └─ worker/                     # Cloudflare Worker (API + cron)
-│     ├─ wrangler.toml (or current format)
+│     ├─ wrangler.jsonc           # single Worker: assets + API + cron (D-020, D-021)
 │     └─ src/
 │        ├─ index.ts              # fetch + scheduled entry points
 │        ├─ routes/               # one file per resource (TASK-14, 19)
@@ -119,7 +128,7 @@ Real Tesla client secrets or tokens, Supabase service-role key, encryption keys,
 | Task | Writes to |
 |---|---|
 | 00 | `docs/research/` |
-| 01 | `docs/*.md` design docs, `docs/DECISIONS.md`; may amend this file |
+| 01 | `docs/*.md` design docs, `docs/DECISIONS.md`, `docs/UNRESOLVED_QUESTIONS.md`; amended this file |
 | 02 | root config, `apps/*`, `packages/*`, `.github/workflows/`, `scripts/` |
 | 03 | `supabase/migrations/`, `supabase/seed.sql`, DB docs |
 | 04 | `supabase/migrations/`, `supabase/tests/`, RLS docs |
@@ -134,7 +143,7 @@ Real Tesla client secrets or tokens, Supabase service-role key, encryption keys,
 | 13 | `apps/web/src/features/analytics` |
 | 14 | `apps/worker/src/{routes,middleware,db,lib}` |
 | 15 | `apps/worker/src/providers/tesla`, `services/tokens` |
-| 16 | `apps/worker/src/services/ingestion`, `supabase/migrations/` |
+| 16 | `apps/worker/src/services/ingestion`, `supabase/migrations/` (including job, lock and usage functions) |
 | 17 | `apps/worker/src/services/commands`, `apps/web/src/features/controls` |
 | 18 | `apps/worker/src/services/automation`, `apps/web/src/features/automation` |
 | 19 | `apps/web/src/features/admin`, `apps/worker/src/routes/admin` |

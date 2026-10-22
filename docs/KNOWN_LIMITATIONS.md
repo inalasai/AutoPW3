@@ -14,3 +14,13 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-008 | Cost | Fleet API is pay-per-use with a USD 10 monthly discount and a mandatory payment method; continuous polling is not free. Billing category of energy endpoints unverified | AWAITING_PROVIDER_APPROVAL | TASK-00 |
 | L-009 | Tesla integration | Forced charging, forced export, solar bypass and islanding are not documented | UNSUPPORTED_BY_DEVICE | TASK-00 |
 | L-010 | Access | Approval of an individual (non-business) developer application and the Fleet API agreement terms are unconfirmed | AWAITING_PROVIDER_APPROVAL | TASK-00 |
+| L-011 | Security | Supabase session token is held in browser storage (XSS risk); mitigated by CSP and no third-party scripts | UNVERIFIED | TASK-01 |
+| L-012 | Security | MFA for ADMIN is recommended, not enforced in v1; Supabase MFA availability unverified | UNVERIFIED | TASK-01 |
+| L-013 | Platform | Workers Free limits (10 ms CPU, 50 subrequests) may be too tight; paid plan price unverified | UNVERIFIED | TASK-01 |
+| L-014 | Platform | Cron Triggers give no exact-time guarantee; all jobs are idempotent and catch up; automation misses beyond the recovery window are skipped | UNVERIFIED | TASK-01 |
+| L-015 | Data | Provider energy resolution and field availability unknown; costs may be reported unpriceable at coarse resolution | UNVERIFIED | TASK-01 |
+| L-016 | Data | No table partitioning in v1; revisit above about 10 million rows per table | NOT_EXECUTED | TASK-01 |
+| L-017 | Privacy | Lawful basis, DPA and transfer review not done; app treated as owner-only | UNVERIFIED | TASK-01 |
+| L-018 | Privacy | Deleted data may persist in Supabase backups for their retention window | UNVERIFIED | TASK-01 |
+| L-019 | UX | Invitations are shared by copying a link; no email delivery in v1 | NOT_EXECUTED | TASK-01 |
+| L-020 | Hosting | `.well-known` public key file serving as a Worker static asset and Cloudflare-managed nameserver requirement not yet tested | UNVERIFIED | TASK-01 |

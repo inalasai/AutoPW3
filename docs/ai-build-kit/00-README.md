@@ -66,8 +66,8 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 ## Progress tracker
 
 **Phase 0 — Discovery and contract**
-- [ ] TASK-00 Tesla Fleet API feasibility spike (research only)
-- [ ] TASK-01 Architecture blueprint (ratifies `04-REPO-STRUCTURE.md`)
+- [x] TASK-00 Tesla Fleet API feasibility spike (research only) — done, see `docs/handoffs/TASK-00.md`
+- [x] TASK-01 Architecture blueprint (ratifies `04-REPO-STRUCTURE.md`) — documents complete, **awaiting owner approval**, see `docs/handoffs/TASK-01.md`
 
 **Phase 1 — Foundation**
 - [ ] TASK-02 Repository bootstrap
