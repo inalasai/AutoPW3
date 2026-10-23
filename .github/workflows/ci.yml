@@ -51,6 +51,9 @@ jobs:
       - name: Database security tests (RLS, roles, bootstrap, invitations; temporary PostgreSQL 17)
         run: npm run db:test
 
+      - name: Generated database types are current (temporary PostgreSQL 17)
+        run: npm run db:types -- --check
+
       - name: Secrets scan
         run: npm run secrets:scan
 

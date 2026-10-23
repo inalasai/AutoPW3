@@ -1,6 +1,6 @@
 # apps/worker — Cloudflare Worker
 
-**Status:** skeleton only (TASK-02): `src/index.ts` serves `GET /api/v1/health`, a JSON 404 for other `/api/*` paths and the built web app as static assets; `scheduled` is a no-op. Config is `wrangler.jsonc` (single Worker, D-021). Authentication and the real API arrive in TASK-14.
+**Status:** skeleton only (TASK-02; error envelope uses `@autopw3/shared` since TASK-05): `src/index.ts` serves `GET /api/v1/health`, a JSON 404 for other `/api/*` paths and the built web app as static assets; `scheduled` is a no-op. Config is `wrangler.jsonc` (single Worker, D-021). Authentication and the real API arrive in TASK-14.
 
 ## Purpose
 The trusted backend: authenticated API, Tesla adapter, token handling, telemetry ingestion, device commands and scheduled automation. Enforces authorisation independently of the front end.
@@ -14,7 +14,7 @@ The trusted backend: authenticated API, Tesla adapter, token handling, telemetry
 | `src/db/` | User-scoped and (justified) service clients | 14 |
 | `src/lib/` | Errors, redacting logger, config | 14 |
 | `src/providers/demo/` | Demo telemetry provider | 14 |
-| `src/providers/tesla/` | OAuth, adapter, capability registry, mock | 15 |
+| `src/providers/tesla/` | OAuth, adapter, capability registry, mock. `raw-types.ts` (TASK-05) holds the loose, `UNVERIFIED` raw Tesla shapes and the `NormaliseLiveStatus` boundary type | 05, 15 |
 | `src/services/tokens/` | Encryption and refresh | 15 |
 | `src/services/ingestion/` | Live and historical sync, rollups | 16 |
 | `src/services/commands/` | Command lifecycle | 17 |

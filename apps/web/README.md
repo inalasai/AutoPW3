@@ -18,7 +18,7 @@ The browser application: routing, layout, feature screens and the design system.
 | `src/features/automation/` | Rules and execution history | 18 |
 | `src/features/admin/` | Members, invitations, audit viewer | 19 |
 | `src/features/settings/` | Site and account settings | 19 |
-| `src/lib/` | API client, Supabase client, config | 07 |
+| `src/lib/` | API client, Supabase client, config. `api-contract.ts` (TASK-05) builds paths and validates responses from the shared `ROUTES` table | 05, 07 |
 | `src/styles/` | Design tokens and Tailwind layers | 06 |
 
 ## Rules

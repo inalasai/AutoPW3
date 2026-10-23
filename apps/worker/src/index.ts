@@ -1,4 +1,5 @@
-import type { HealthResponse } from '@autopw3/shared';
+import { buildErrorResponse, httpStatusFor } from '@autopw3/shared';
+import type { ErrorCode, HealthResponse } from '@autopw3/shared';
 import type { Env } from './env';
 
 const JSON_HEADERS = {
@@ -13,9 +14,18 @@ function jsonResponse(body: unknown, status: number, requestId: string): Respons
   });
 }
 
+/** Error response in the contract's envelope and status, built from the shared definitions. No internals. */
+function errorResponse(code: ErrorCode, message: string, requestId: string): Response {
+  return jsonResponse(
+    buildErrorResponse({ code, message, requestId }),
+    httpStatusFor(code),
+    requestId,
+  );
+}
+
 /**
  * TASK-02 stub: only `GET /api/v1/health`. Authentication, roles, validation and the real routes
- * arrive in TASK-14 (docs/API_CONTRACT.md). Errors use the contract's envelope and contain no internals.
+ * arrive in TASK-14 (docs/API_CONTRACT.md; the route table is `ROUTES` in @autopw3/shared).
  */
 export async function handleRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -23,22 +33,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
   if (url.pathname === '/api/v1/health') {
     if (request.method !== 'GET') {
-      return jsonResponse(
-        { error: { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed', requestId } },
-        405,
-        requestId,
-      );
+      return errorResponse('METHOD_NOT_ALLOWED', 'Method not allowed', requestId);
     }
     const body: HealthResponse = { status: 'ok' };
     return jsonResponse(body, 200, requestId);
   }
 
   if (url.pathname.startsWith('/api/')) {
-    return jsonResponse(
-      { error: { code: 'NOT_FOUND', message: 'Not found', requestId } },
-      404,
-      requestId,
-    );
+    return errorResponse('NOT_FOUND', 'Not found', requestId);
   }
 
   // Everything else is the single-page app, served from static assets.

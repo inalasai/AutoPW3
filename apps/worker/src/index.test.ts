@@ -1,4 +1,4 @@
-import { HealthResponseSchema } from '@autopw3/shared';
+import { ErrorResponseSchema, HealthResponseSchema } from '@autopw3/shared';
 import { describe, expect, it } from 'vitest';
 import type { Env } from './env';
 import { handleRequest } from './index';
@@ -38,7 +38,7 @@ describe('GET /api/v1/health', () => {
       env,
     );
     expect(res.status).toBe(405);
-    const body = (await res.json()) as { error: { code: string; requestId: string } };
+    const body = ErrorResponseSchema.parse(await res.json());
     expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
     expect(body.error.requestId).toBe(res.headers.get('x-request-id'));
   });
@@ -50,6 +50,8 @@ describe('unknown routes', () => {
     const res = await handleRequest(new Request('http://localhost/api/v1/nope'), env);
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toContain('application/json');
+    const body = ErrorResponseSchema.parse(await res.json());
+    expect(body.error.code).toBe('NOT_FOUND');
     expect(assetRequests).toHaveLength(0);
   });
 
