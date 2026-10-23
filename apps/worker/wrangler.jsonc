@@ -1,0 +1,21 @@
+{
+  // Single deployed Worker: static web assets + /api/v1/* + scheduled handler (D-008, D-020, D-021).
+  // No secrets belong in this file. Secrets are set with `wrangler secret put` (docs/CREDENTIALS.md).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "autopw3",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "triggers": {
+    // Cron timing is approximate; jobs are idempotent and claimed from the database (D-007).
+    "crons": ["* * * * *"],
+  },
+  "vars": {
+    "ENVIRONMENT": "local",
+  },
+}

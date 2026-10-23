@@ -1,6 +1,6 @@
 # apps/web — React front end
 
-**Status:** not started (created in TASK-02, shell in TASK-06).
+**Status:** skeleton only (TASK-02): Vite + React + Tailwind placeholder shell with a demo banner, `lib/config.ts`, security headers in `public/_headers` and a placeholder Tesla key file under `public/.well-known/`. Routing, layout and design system arrive in TASK-06. Run with `npm run dev` (see `docs/DEVELOPMENT_SETUP.md`).
 
 ## Purpose
 The browser application: routing, layout, feature screens and the design system. It displays data and sends requests; it never decides authorisation.

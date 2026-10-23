@@ -1,6 +1,6 @@
 # apps/worker — Cloudflare Worker
 
-**Status:** not started (skeleton in TASK-02, API in TASK-14).
+**Status:** skeleton only (TASK-02): `src/index.ts` serves `GET /api/v1/health`, a JSON 404 for other `/api/*` paths and the built web app as static assets; `scheduled` is a no-op. Config is `wrangler.jsonc` (single Worker, D-021). Authentication and the real API arrive in TASK-14.
 
 ## Purpose
 The trusted backend: authenticated API, Tesla adapter, token handling, telemetry ingestion, device commands and scheduled automation. Enforces authorisation independently of the front end.
