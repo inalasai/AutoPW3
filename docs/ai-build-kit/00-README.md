@@ -72,7 +72,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 **Phase 1 — Foundation**
 - [x] TASK-02 Repository bootstrap — checks pass from a clean clone; CI and PR `NOT_EXECUTED`, see `docs/handoffs/TASK-02.md`
 - [x] TASK-03 Database schema and migrations - verified on PostgreSQL 17.10 with a shim; `supabase db reset`, config.toml load, CI and PR `NOT_EXECUTED`, see `docs/handoffs/TASK-03.md`
-- [ ] TASK-04 RLS, grants, admin bootstrap, SQL security tests
+- [x] TASK-04 RLS, grants, admin bootstrap, SQL security tests - 336 assertions pass on PostgreSQL 17.10 with a shim; `supabase test db`, real Supabase stack, CI, PR and `db:types` `NOT_EXECUTED`, see `docs/handoffs/TASK-04.md`
 - [ ] TASK-05 Shared types and validation
 
 **Phase 2 — Frontend foundation**
