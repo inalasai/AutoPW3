@@ -79,6 +79,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/.wrangler/**',
       '**/worker-configuration.d.ts',
+      '**/database.types.ts',
       'supabase/**',
       'docs/**',
     ],
