@@ -149,3 +149,32 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Design every job and request handler to fit the Workers Free limits (10 ms CPU, 50 subrequests per invocation, V3). Measure in TASK-14 and TASK-16. If the Free plan proves insufficient, stop and ask the owner before adopting the paid plan, because its price was not verified here and it affects the subscription-free goal (Q-05).
 - **Alternatives:** assume the paid plan (rejected: undeclared cost).
 - **Rationale:** Honest cost and limits.
+
+## Owner approval of TASK-01 (2026-10-23)
+- **Status:** Approved
+- **Decision:** The owner approved the TASK-01 blueprint on 2026-10-23 with the single word "approve": decisions D-004 to D-024 move from Proposed to Approved, and the defaults listed in docs/UNRESOLVED_QUESTIONS.md are accepted as working defaults. Questions that need external facts or owner action (Q-01 Tesla application, Q-02 EU base URL, Q-04 payment method and billing limit, Q-06 read-only live verification, Q-13 Supabase signing keys) stay open and are not answered by this approval.
+- **Rationale:** The TASK-01 handoff requires owner approval before TASK-02 begins. The original Proposed status lines above are left unchanged (append-only register).
+## D-025 TypeScript pinned to 6.0.3, not 7.0.2 (TASK-02)
+- **Status:** Approved (stop-condition correction, TASK-02)
+- **Decision:** Root 	ypescript is pinned to 6.0.3. The newest release on npm (7.0.2) cannot be installed together with 	ypescript-eslint 8.72.0, whose peer range is 	ypescript >=4.8.4 <6.1.0 (
+pm install failed with ERESOLVE).
+- **Alternatives:** TypeScript 7 with --force or --legacy-peer-deps (rejected: unsupported, ESLint typing rules may break silently); dropping 	ypescript-eslint (rejected: loses the lint rules this project depends on).
+- **Rationale:** Task 02 stop condition: correct the version, record it, do not change architecture. Revisit when 	ypescript-eslint supports TypeScript 7.
+
+## D-026 Worker tests run in Node with Vitest, not a workerd pool (TASK-02)
+- **Status:** Approved
+- **Decision:** pps/worker tests call handleRequest(request, env) directly in Node with a fake ASSETS binding. @cloudflare/vitest-pool-workers is not installed in TASK-02. Local runtime behaviour is checked separately with wrangler dev.
+- **Alternatives:** workerd pool now (rejected for the skeleton: extra dependency and moving parts before any binding needs it); revisit in TASK-14 if tests need real Workers APIs.
+- **Rationale:** Smallest toolchain that proves the handler contract. Limitation recorded as L-022.
+
+## D-027 Server database key variable is SUPABASE_SECRET_KEY (TASK-02)
+- **Status:** Approved
+- **Decision:** .env.example and the lint rule use SUPABASE_SECRET_KEY (the name in the approved SYSTEM_ARCHITECTURE.md section 8) instead of the kit's provisional SUPABASE_SERVICE_ROLE_KEY. docs/CREDENTIALS.md was updated. SUPABASE_ANON_KEY is unchanged. Whether the project uses Supabase's newer publishable/secret keys or legacy anon/service-role keys is UNVERIFIED until the Supabase project exists (Q-13).
+- **Alternatives:** keep the old name (rejected: two names for one secret).
+- **Rationale:** One name per secret across documents (Task 01 consistency rule).
+
+## D-028 Dependency pinning, line endings and formatting scope (TASK-02)
+- **Status:** Approved
+- **Decision:** All dependency versions are exact (no ^ or ~) with package-lock.json committed. .gitattributes forces LF. Prettier checks code and config only (docs/, supabase/ and all Markdown are excluded). ESLint enforces the import-direction table, no ambient time or randomness in packages/domain, and a heuristic float-money rule; scripts/check-lint-rules.mjs proves each rule fires.
+- **Alternatives:** caret ranges (rejected: the task requires pinned versions); formatting all Markdown (rejected: rewrites approved documents).
+- **Rationale:** Reproducible installs and rules that cannot rot silently.

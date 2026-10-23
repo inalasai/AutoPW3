@@ -2,7 +2,7 @@
 
 Subscription-free residential energy management for Tesla Powerwall sites: live energy-flow view, tariff-aware analytics, supported device controls and safe automation.
 
-> **Status: pre-alpha, specification phase.** No application code exists yet. The project is built in small, verifiable tasks driven by the [AI build kit](docs/ai-build-kit/00-README.md). Progress is tracked there.
+> **Status: pre-alpha, skeleton.** The toolchain and an empty application shell exist (TASK-02); no product features yet. The project is built in small, verifiable tasks driven by the [AI build kit](docs/ai-build-kit/00-README.md). Progress is tracked there.
 
 ## Planned features
 - Animated live view of solar, battery, home and grid power.
@@ -30,12 +30,13 @@ React, TypeScript, Vite, Tailwind CSS · Cloudflare Workers · Supabase (Auth, P
 | [`docs/ai-build-kit`](docs/ai-build-kit/00-README.md) | Build instructions | 22 phased tasks |
 
 ## Getting started
-The toolchain is created in **TASK-02**. Until then there is nothing to install or run. After TASK-02 the root scripts will be:
+Requires Node.js 22 or newer. Details: [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md).
 
 ```bash
 npm install
 npm run typecheck && npm run lint && npm test && npm run build
 npm run dev           # web app in demo mode, no credentials needed
+npm run dev:worker    # Worker on http://localhost:8787 (run the web build first)
 ```
 
 The app is designed to run locally in **demo mode** with synthetic, clearly labelled data and no Tesla or production database credentials.

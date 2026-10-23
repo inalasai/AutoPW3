@@ -24,3 +24,8 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-018 | Privacy | Deleted data may persist in Supabase backups for their retention window | UNVERIFIED | TASK-01 |
 | L-019 | UX | Invitations are shared by copying a link; no email delivery in v1 | NOT_EXECUTED | TASK-01 |
 | L-020 | Hosting | `.well-known` public key file serving as a Worker static asset and Cloudflare-managed nameserver requirement not yet tested | UNVERIFIED | TASK-01 |
+| L-021 | Quality | The float-money lint rule only forbids parseFloat and .toFixed(); other float arithmetic on money is not detected by tooling | NOT_EXECUTED | TASK-02 |
+| L-022 | Testing | Worker tests run in Node with a fake ASSETS binding, not in workerd; real-runtime behaviour is checked only by manual wrangler dev | NOT_EXECUTED | TASK-02 |
+| L-023 | CI | .github/workflows/ci.yml has not run on GitHub; Linux and Node 22 behaviour is unverified | NOT_EXECUTED | TASK-02 |
+| L-024 | Security | The Content-Security-Policy in pps/web/public/_headers forbids inline styles and scripts; UI libraries that inject inline styles will need a reviewed policy change | NOT_EXECUTED | TASK-02 |
+| L-025 | Tooling | 	ypescript is held at 6.0.3 because 	ypescript-eslint does not yet support TypeScript 7 (D-025) | UNVERIFIED | TASK-02 |

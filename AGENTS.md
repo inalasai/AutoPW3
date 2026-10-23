@@ -33,16 +33,22 @@ AutoPW3 is a subscription-free residential energy-management web app for Tesla P
 - Do not rewrite working code from earlier tasks unless a documented defect requires it.
 
 ## Commands
-Filled in by Task 02. Expected root scripts (npm workspaces):
+Root scripts (npm workspaces, created in Task 02; details in `docs/DEVELOPMENT_SETUP.md`):
 ```bash
 npm install
-npm run typecheck
-npm run lint
-npm test
-npm run build
+npm run typecheck      # tsc, strict, every workspace
+npm run lint           # ESLint + architecture rule checks + Prettier
+npm test               # Vitest, every workspace
+npm run build          # Vite build (web) + wrangler dry-run bundle (worker)
+npm run secrets:scan   # Secretlint
+npm run check          # all of the above
+npm run dev            # web app, demo mode, no credentials
+npm run dev:worker     # Worker via wrangler dev (build the web app first)
+```
+Not available until their task is complete:
+```bash
 npm run test:e2e   # Playwright (from Task 07)
 npm run db:reset   # local Supabase reset (Task 03)
 npm run db:test    # SQL security tests (Task 04)
 npm run db:types   # regenerate DB types (Task 05)
 ```
-Until Task 02 is complete these do not exist yet.
