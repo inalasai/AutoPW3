@@ -123,7 +123,19 @@ async function snapshot(client) {
       where connamespace = 'public'::regnamespace
     union all select 'index', indexname from pg_indexes where schemaname = 'public'
     union all select 'trigger', tgrelid::regclass::text || '.' || tgname from pg_trigger
-      where not tgisinternal and tgrelid::regclass::text like 'public.%'
+      where not tgisinternal and (tgrelid::regclass::text like 'public.%' or tgrelid = 'auth.users'::regclass)
+    -- TASK-04: policies, privileges and functions must also be identical after a re-apply or a reset.
+    union all select 'policy', tablename || '.' || policyname || '.' || cmd || '.' || coalesce(qual, '') || '.' || coalesce(with_check, '')
+      from pg_policies where schemaname = 'public'
+    union all select 'privilege', grantee || ':' || table_name || ':' || privilege_type
+      from information_schema.role_table_grants
+      where table_schema = 'public' and grantee in ('anon', 'authenticated', 'service_role')
+    union all select 'column privilege', grantee || ':' || table_name || '.' || column_name || ':' || privilege_type
+      from information_schema.column_privileges
+      where table_schema = 'public' and grantee in ('anon', 'authenticated')
+    union all select 'function', n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') definer='
+        || p.prosecdef || ' config=' || coalesce(p.proconfig::text, '') || ' acl=' || coalesce(p.proacl::text, 'default')
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'private')
     order by 1, 2`);
   return JSON.stringify(rows);
 }
@@ -284,26 +296,42 @@ try {
       noRls.map((r) => r.relname).join(', '),
     );
 
-  const policies = (
-    await client.query(`select count(*)::int as n from pg_policies where schemaname = 'public'`)
-  ).rows[0].n;
-  if (policies === 0) pass('no policies yet (default deny; policies are TASK-04)');
-  else fail('no policies yet', `${policies} found`);
+  // After TASK-04: the five server-only tables have no policy and no access for anon or authenticated; every
+  // other table is exposed only through policies (details and behaviour are tested by `npm run db:test`).
+  const SERVER_ONLY = [
+    'tesla_credentials',
+    'oauth_states',
+    'system_bootstrap',
+    'job_locks',
+    'scheduled_jobs',
+  ];
+  const policyTables = (
+    await client.query(
+      `select distinct tablename from pg_policies where schemaname = 'public' order by 1`,
+    )
+  ).rows.map((r) => r.tablename);
+  const serverOnlyWithPolicy = policyTables.filter((t) => SERVER_ONLY.includes(t));
+  if (serverOnlyWithPolicy.length === 0) pass('server-only tables have no policies');
+  else fail('server-only tables have no policies', serverOnlyWithPolicy.join(', '));
 
   const leaks = (
-    await client.query(`
+    await client.query(
+      `
       select r.rolname, c.relname, p.priv
       from pg_roles r
       cross join pg_class c
       cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) as p(priv)
-      where r.rolname in ('anon', 'authenticated')
-        and c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
-        and has_table_privilege(r.rolname, c.oid, p.priv)`)
+      where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
+        and has_table_privilege(r.rolname, c.oid, p.priv)
+        and (r.rolname = 'anon' or (r.rolname = 'authenticated' and c.relname = any($1)))`,
+      [SERVER_ONLY],
+    )
   ).rows;
-  if (leaks.length === 0) pass('anon and authenticated have no privileges on any public table');
+  if (leaks.length === 0)
+    pass('anon has no privilege on any table; authenticated none on the server-only tables');
   else
     fail(
-      'anon and authenticated have no privileges',
+      'anon and authenticated privileges',
       leaks
         .map((l) => `${l.rolname}:${l.relname}:${l.priv}`)
         .slice(0, 5)
@@ -319,13 +347,12 @@ try {
   if (publicLeaks.length === 0) pass('PUBLIC has no privileges on any public table');
   else fail('PUBLIC has no privileges', publicLeaks.map((r) => r.relname).join(', '));
 
+  // authenticated may use schema private only to evaluate the two policy helpers (TASK-04, D-031); anon never.
   const privateExec = (
-    await client.query(
-      `select has_schema_privilege('anon', 'private', 'USAGE') or has_schema_privilege('authenticated', 'private', 'USAGE') as leak`,
-    )
+    await client.query(`select has_schema_privilege('anon', 'private', 'USAGE') as leak`)
   ).rows[0].leak;
-  if (!privateExec) pass('anon and authenticated cannot use the private schema');
-  else fail('anon and authenticated cannot use the private schema');
+  if (!privateExec) pass('anon cannot use the private schema');
+  else fail('anon cannot use the private schema');
 
   const credPriv = (
     await client.query(
@@ -1183,7 +1210,12 @@ try {
         `insert into household_members (household_id, user_id, role) values ($1, $2, 'READ_WRITE')`,
         [f.h1, f.userId],
       );
-      await client.query(`insert into user_profiles (user_id) values ($1)`, [f.userId]);
+      // TASK-04: the auth trigger creates the profile at sign-up, so it is already there.
+      const before = await client.query(
+        `select count(*)::int as n from user_profiles where user_id = $1`,
+        [f.userId],
+      );
+      if (before.rows[0].n !== 1) throw new Error('the auth trigger did not create a profile');
       await client.query(`delete from auth.users where id = $1`, [f.userId]);
       const r = await client.query(
         `select (select count(*) from household_members where user_id = $1) + (select count(*) from user_profiles where user_id = $1) as n`,

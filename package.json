@@ -24,6 +24,7 @@
     "build": "npm run build --workspaces --if-present",
     "db:verify": "node scripts/db-verify.mjs",
     "db:dictionary": "node scripts/db-verify.mjs --dictionary",
+    "db:test": "node scripts/db-test.mjs",
     "db:reset": "npx --yes supabase@2.122.0 db reset",
     "secrets:scan": "secretlint --secretlintignore .secretlintignore \"**/*\"",
     "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run secrets:scan"

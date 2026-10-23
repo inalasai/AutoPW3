@@ -1,7 +1,7 @@
 name: CI
 
 # Mirrors the local scripts in package.json. `db:verify` (TASK-03) applies the migrations to a throwaway PostgreSQL.
-# The pgTAP security tests (npm run db:test) are added in TASK-04.
+# `db:test` (TASK-04) runs the SQL security tests on the same throwaway PostgreSQL. Neither replaces a run on a real Supabase stack.
 # Deploy workflows are added in TASK-21. No secrets are needed or used by this workflow.
 
 on:
@@ -47,6 +47,9 @@ jobs:
 
       - name: Database migrations and constraints (temporary PostgreSQL 17)
         run: npm run db:verify
+
+      - name: Database security tests (RLS, roles, bootstrap, invitations; temporary PostgreSQL 17)
+        run: npm run db:test
 
       - name: Secrets scan
         run: npm run secrets:scan
