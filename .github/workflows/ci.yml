@@ -1,6 +1,7 @@
 name: CI
 
-# Mirrors the local scripts in package.json. Database tests (npm run db:test) are added in TASK-04.
+# Mirrors the local scripts in package.json. `db:verify` (TASK-03) applies the migrations to a throwaway PostgreSQL.
+# The pgTAP security tests (npm run db:test) are added in TASK-04.
 # Deploy workflows are added in TASK-21. No secrets are needed or used by this workflow.
 
 on:
@@ -43,6 +44,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Database migrations and constraints (temporary PostgreSQL 17)
+        run: npm run db:verify
 
       - name: Secrets scan
         run: npm run secrets:scan
