@@ -9,7 +9,7 @@ Never claim a check passed unless you ran it and saw the result. Anything not ru
 | Unit | Vitest | `*.test.ts` beside code | Pure logic: tariff, accounting, normalisation, schemas |
 | Component | Vitest + React Testing Library | `apps/web/**/*.test.tsx` | UI states, role-aware controls, accessibility |
 | API | Vitest | `apps/worker/**/*.test.ts` | Auth, roles, validation, cross-household denial, error sanitisation |
-| Database | pgTAP | `supabase/tests/` | RLS, grants, role escalation denial, bootstrap, constraints |
+| Database | pgTAP-style SQL (`npm run db:test` on a throwaway PostgreSQL 17 with a test shim; `supabase test db` on a real stack, NOT_EXECUTED so far) | `supabase/tests/database/` | RLS, grants, role escalation denial, bootstrap, invitations, audit, constraints (`npm run db:verify`) |
 | End-to-end | Playwright | `e2e/` | Real journeys in the browser against mocks or a local stack |
 | Live Tesla | manual only | owner-run | Real-site verification, never automated |
 
