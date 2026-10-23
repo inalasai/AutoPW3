@@ -1,6 +1,6 @@
 # packages/shared — types and schemas
 
-**Status:** not started (TASK-05). Package name: `@autopw3/shared`.
+**Status:** skeleton (TASK-02): role constants (`ROLES`, `DEFAULT_ROLE`) and the health response schema, with tests. Domain types and generated DB types arrive in TASK-05. Package name: `@autopw3/shared`; consumed as TypeScript source.
 
 ## Purpose
 The single source of truth for TypeScript types, Zod schemas, constants and generated database types. Used by the web app and the Worker.
