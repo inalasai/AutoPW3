@@ -1,6 +1,6 @@
 # scripts — helper scripts
 
-**Status:** empty.
+**Status:** `check-lint-rules.mjs` (TASK-02) proves the architecture lint rules fire; run by `npm run lint`.
 
 Small, documented scripts for development and operations (for example key generation, local setup, secrets scan). Each script must:
 - start with a comment explaining purpose and usage,

@@ -7,7 +7,7 @@
 | Credential | Used by | Local | Production | Notes |
 |---|---|---|---|---|
 | Supabase URL, anon key | Web, Worker | `.env.local`, `.dev.vars` | Build-time config / Worker secret | Anon key is public by design; RLS protects data |
-| Supabase service-role key | Worker only | `.dev.vars` | Cloudflare secret | Bypasses RLS. Use only where documented. Never in the browser or CI logs |
+| Supabase secret (service-role) key, variable `SUPABASE_SECRET_KEY` | Worker only | `.dev.vars` | Cloudflare secret | Bypasses RLS. Use only where documented. Never in the browser or CI logs |
 | Tesla client ID and secret | Worker only | `.dev.vars` | Cloudflare secret | Created in the Tesla developer portal (TASK-00 setup steps) |
 | Tesla user tokens | Worker only | database (encrypted) | database (encrypted) | Never returned to clients or logged |
 | Token encryption key (versioned) | Worker only | `.dev.vars` | Cloudflare secret | Back up in a password manager; rotation procedure below |

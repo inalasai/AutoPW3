@@ -44,3 +44,6 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Exception: the Tesla public key placeholder/real public key is committed (public keys are not secrets)
+!apps/web/public/.well-known/appspecific/com.tesla.3p.public-key.pem

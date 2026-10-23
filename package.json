@@ -1,0 +1,38 @@
+{
+  "name": "autopw3",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Subscription-free residential energy management for Tesla Powerwall sites.",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/domain",
+    "apps/web",
+    "apps/worker"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @autopw3/web",
+    "dev:worker": "npm run dev -w @autopw3/worker",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint . && npm run lint:rules && prettier --check .",
+    "lint:rules": "node scripts/check-lint-rules.mjs",
+    "format": "prettier --write .",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "secrets:scan": "secretlint --secretlintignore .secretlintignore \"**/*\"",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run secrets:scan"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.7",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "secretlint": "13.0.7",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0"
+  }
+}

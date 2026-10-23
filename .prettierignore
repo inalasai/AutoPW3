@@ -1,0 +1,12 @@
+# Generated, vendored or prose files are not formatted by Prettier.
+node_modules/
+dist/
+build/
+coverage/
+.wrangler/
+package-lock.json
+docs/
+supabase/
+*.md
+*.pem
+worker-configuration.d.ts
