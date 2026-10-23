@@ -60,6 +60,6 @@ These are flagged in the TASK-03 handoff. In short: composite foreign keys keep 
 
 ## Left to later tasks
 - Not done in TASK-04 (see KNOWN_LIMITATIONS L-031, L-032): immutability of tariff child rows, an audited household-deletion function.
-- TASK-05: generated database types (`npm run db:types`).
+- Done in TASK-05: generated database types (`npm run db:types`; see `docs/DOMAIN_TYPES.md` section 6 and L-038).
 - TASK-10/11: tariff engine checks that cannot be constraints (full-day coverage, season validation, `ALL` versus `WEEKDAY`/`WEEKEND` slot overlap).
 - TASK-16: `claim_jobs`, `acquire_lock`, `release_lock`, `record_provider_call` and the retention deletes.

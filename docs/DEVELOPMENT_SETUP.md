@@ -39,13 +39,14 @@ npm run build && npm run dev:worker   # Worker on http://localhost:8787, serves 
 | `npm test` | Vitest in every workspace |
 | `npm run build` | Vite build for web (`apps/web/dist`), `wrangler deploy --dry-run` bundle for the Worker (`apps/worker/dist`) |
 | `npm run db:verify` | Applies `supabase/migrations` to a throwaway PostgreSQL 17 and runs constraint checks (TASK-03; takes a few minutes; not part of `npm run check`) |
+| `npm run db:types` | Regenerates `packages/shared/src/db/database.types.ts` from the migrations on a throwaway PostgreSQL 17 (TASK-05; takes a minute). `-- --check` fails if the committed file is stale. Not the output of `supabase gen types` (L-038) |
 | `npm run db:test` | Runs the SQL security tests in `supabase/tests/database` (RLS, roles, bootstrap, invitations, audit) on a throwaway PostgreSQL 17 after applying the migrations, and checks the policies against `docs/RLS_POLICY_MATRIX.md` (TASK-04; takes a few minutes; not part of `npm run check`) |
 | `npm run db:dictionary` | `db:verify` plus regenerates `docs/DATABASE_DICTIONARY.md` |
 | `npm run db:reset` | `supabase db reset` on a local Supabase stack. Needs Docker; `NOT_EXECUTED` so far |
 | `npm run secrets:scan` | Secretlint over the repository |
 | `npm run check` | All of the above in order |
 
-Not yet available: `npm run test:e2e` (TASK-07), `npm run db:types` (TASK-05). Database setup details: `docs/DATABASE_SETUP.md`.
+Not yet available: `npm run test:e2e` (TASK-07). Database setup details: `docs/DATABASE_SETUP.md`.
 
 ## Workspaces and import rules
 Packages: `@autopw3/shared`, `@autopw3/domain`, `@autopw3/web`, `@autopw3/worker`. `shared` and `domain` are consumed as TypeScript source (no build step), so a change is visible to the apps immediately.

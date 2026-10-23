@@ -12,12 +12,12 @@ Status: **PROPOSED, awaiting owner approval.** Written 2026-10-22. Implemented i
   ```json
   { "error": { "code": "FORBIDDEN", "message": "Human-readable, no internals", "requestId": "…", "details": [ { "path": "role", "issue": "invalid_enum" } ] } }
   ```
-  `details` appears only for `422` and lists field paths and issue codes, never submitted secrets. Codes: `UNAUTHENTICATED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `CONFLICT` 409, `PAYLOAD_TOO_LARGE` 413, `VALIDATION_FAILED` 422, `RATE_LIMITED` 429 (with `Retry-After`), `NOT_IMPLEMENTED` 501, `PROVIDER_UNAVAILABLE` 502/503, `BUDGET_EXHAUSTED` 429/503 (read routes degrade to cached data instead, see §3), `INTERNAL` 500.
+  `details` appears only for `422` and lists field paths and issue codes, never submitted secrets. Codes: `UNAUTHENTICATED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404, `METHOD_NOT_ALLOWED` 405 (added in TASK-05, D-036; the Worker already returned it), `CONFLICT` 409, `PAYLOAD_TOO_LARGE` 413, `VALIDATION_FAILED` 422, `RATE_LIMITED` 429 (with `Retry-After`), `NOT_IMPLEMENTED` 501, `PROVIDER_UNAVAILABLE` 502/503, `BUDGET_EXHAUSTED` 429/503 (read routes degrade to cached data instead, see §3), `INTERNAL` 500.
 - **Body limit:** 64 KiB by default; 1 MiB on the dynamic-price upload route. Larger → 413.
 - **Pagination:** `limit` (default 50, max 200) and opaque `cursor`; responses `{ "items": [...], "nextCursor": string|null }`. Caps are enforced server-side.
 - **Time:** all instants are ISO-8601 UTC strings (`2026-10-22T10:00:00Z`). Ranges are half-open `[from, to)`. Local dates are `YYYY-MM-DD` in the site/tariff timezone. Requests with `to <= from` → 422. Maximum range per resolution: snapshots 7 days, `interval` 31 days, `hourly` 92 days, `daily` 1,100 days.
 - **Numbers:** power in W, energy in Wh, percentages 0 to 100 as JSON numbers with unit-suffixed names. **Money, rates and any exact decimal are JSON strings** (`"0.317500"`) with an adjacent `currency`. Missing data is `null`, never `0`.
-- **Idempotency:** `Idempotency-Key` (8 to 128 chars `[A-Za-z0-9_-]`) is **required** on `POST …/commands` and `POST …/invitations`, optional on other creating POSTs. Same key + same canonical body → original response replayed (`Idempotent-Replay: true`); same key + different body → **409**.
+- **Idempotency:** `Idempotency-Key` (8 to 128 chars `[A-Za-z0-9_-]`) is **required** on `POST …/commands` and `POST …/invitations`, optional on other creating POSTs. Same key + same canonical body → original response replayed (`Idempotent-Replay: true`); same key + different body → **409**. Exception (D-036): an invitation token is stored only as a hash and is shown once, so replaying `POST …/invitations` returns the original invitation with `token` and `link` set to `null`; the admin who lost the token revokes the invitation and creates a new one.
 - **Source and freshness:** any reading carries `source` (`TESLA` or `DEMO`), `sampledAt`, `receivedAt`, `ageSeconds`, `quality`, `freshness` (`FRESH | STALE | UNAVAILABLE`). `DEMO` responses only come from `/demo/*` routes.
 - **Never returned:** Tesla tokens, client secret, encryption material, password hashes, raw provider payloads, other households' data.
 - **Versioning:** breaking changes require `/api/v2`; additive fields are allowed.
@@ -64,8 +64,8 @@ Min role: `any` = any authenticated user, `member` = READ_ONLY or higher, `RW` =
 | POST | `/households/{hid}/provider/tesla/connect` | ADMIN | `{ enableControls?: boolean }` → `{ authorizeUrl }`; creates `oauth_states` row; S8 | 15 |
 | GET | `/provider/tesla/callback` | public (state-bound) | `?code&state`; consumes single-use state; exchanges code; stores encrypted tokens; **302** to `/settings?...`; never returns tokens; S1, S8 | 15 |
 | GET | `/households/{hid}/provider/tesla` | member | `{ state: NOT_CONNECTED|ACTIVE|NEEDS_REAUTH|REVOKED, scopes, lastRefreshAt }` (no tokens) | 15 |
-| GET | `/households/{hid}/provider/tesla/discovered-sites` | ADMIN | Live call (`products`), counts toward budget; returns id, name only | 15 |
-| POST | `/households/{hid}/sites` | ADMIN | `{ provider: "TESLA", providerSiteId, name? }`; verifies the id is in the discovered list | 15 |
+| GET | `/households/{hid}/provider/tesla/discovered-sites` | ADMIN | Live call (`products`), counts toward budget; returns `providerSiteId` and `name` only | 15 |
+| POST | `/households/{hid}/sites` | ADMIN | `{ provider: "TESLA", providerSiteId, name?, timezone? }`; verifies the id is in the discovered list; `timezone` is an IANA name and defaults to the household's timezone (D-036) | 15 |
 | DELETE | `/households/{hid}/provider/tesla` | ADMIN | Deletes stored credentials, marks sites `DISCONNECTED`, instructs the user to revoke on Tesla's consent page (programmatic revocation is `UNVERIFIED`); S1 | 15 |
 
 ### 2.4 Telemetry and analytics

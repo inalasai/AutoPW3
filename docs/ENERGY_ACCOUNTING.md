@@ -83,7 +83,7 @@ Per interval (rates in the interval's currency):
 - Export credit = `gridExportKwh × exportRate` if `export_payment_model = PER_KWH`, else 0 (explicit `NONE`).
 - Levies: `PER_KWH` levy = `gridImportKwh × amount`; `PER_DAY` levies are charged per local day in the period (not per interval).
 - Standing charge = `standingChargePerDay × number of local days` in the period (DST day counts as one day).
-- Tax: if `INCLUSIVE`, rates already include tax; the reported ex-tax amount is `gross / (1 + vatRate)` and VAT is `gross − exTax`. If `EXCLUSIVE`, VAT = `taxableAmount × vatRate` added on top, where taxable amount is energy cost plus standing charge plus taxable levies. `NONE` applies no tax. Whether export credits are taxable is **not assumed**: the export tariff has its own `tax_mode` (default `NONE`), and the owner confirms the correct treatment (Q-09). Irish figures anywhere in fixtures are `ILLUSTRATIVE EXAMPLE` only.
+- Tax: if `INCLUSIVE`, rates already include tax; the reported ex-tax amount is `gross / (1 + vatRatePercent / 100)` and VAT is `gross − exTax`. If `EXCLUSIVE`, VAT = `taxableAmount × vatRatePercent / 100` added on top, where taxable amount is energy cost plus standing charge plus taxable levies. `NONE` applies no tax. Whether export credits are taxable is **not assumed**: the export tariff has its own `tax_mode` (default `NONE`), and the owner confirms the correct treatment (Q-09). Irish figures anywhere in fixtures are `ILLUSTRATIVE EXAMPLE` only.
 - **Net cost** = import energy cost + standing charge + levies + VAT − export credit.
 
 Energy and efficiency metrics (all from `energy_intervals`, with completeness):
@@ -104,7 +104,7 @@ Fields that are `NULL` in the source produce `null` metrics, not zero.
 
 ## 8. Worked illustration (fixture seed for TASK-10/11; numbers are illustrative)
 
-Assumptions: EUR, `EXCLUSIVE` tax 0.2300, import rate 0.300000 for a 2 kWh interval, export rate 0.100000 for 0.5 kWh, standing charge 0.600000 per day, one day.
+Assumptions: EUR, `EXCLUSIVE` tax with `vatRatePercent` 23.0000 (a percentage, not a fraction; D-036), import rate 0.300000 for a 2 kWh interval, export rate 0.100000 for 0.5 kWh, standing charge 0.600000 per day, one day.
 - Import cost = 2 × 0.300000 = 0.600000. Export credit = 0.5 × 0.100000 = 0.050000.
-- Taxable = 0.600000 + 0.600000 = 1.200000; VAT = 1.200000 × 0.2300 = 0.276000.
+- Taxable = 0.600000 + 0.600000 = 1.200000; VAT = 1.200000 × 23.0000 / 100 = 0.276000.
 - Net = 0.600000 + 0.600000 + 0.276000 − 0.050000 = 1.426000 → lines rounded: 0.60, 0.60, 0.28, −0.05; displayed net = 1.43 (sum of rounded lines), while the unrounded total is 1.426000. TASK-11 golden tests include this and DST-day cases.

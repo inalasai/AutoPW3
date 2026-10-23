@@ -234,3 +234,27 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Tests are pgTAP-style SQL files in `supabase/tests/database` using only `plan`, `ok`, `is`, `isnt`, `throws_ok`, `lives_ok` and `finish`. `npm run db:test` runs them on the throwaway PostgreSQL 17 from D-029 with `scripts/db/pgtap-lite.sql` (a small test-only look-alike for those functions) and an extended shim that adds `auth.uid()`, `auth.jwt()` and `email_confirmed_at`. The same files are meant to run under real pgTAP with `supabase test db` (NOT_EXECUTED). The run also compares `pg_policies` with the manifest in `docs/RLS_POLICY_MATRIX.md`.
 - **Alternatives:** wait for Docker (rejected: security is the highest-risk area and should be exercised now); a separate Node-only test suite (rejected: it could not be reused on the real stack).
 - **Rationale:** AGENTS.md: run real checks, say what was not run. Limitation recorded as L-033.
+
+## D-036 Contract adjustments found while writing the shared types (TASK-05)
+- **Status:** Approved by the owner (four questions answered in TASK-05)
+- **Decision:** (1) `POST /households/{hid}/sites` takes an optional IANA `timezone`; the Worker defaults it to the household timezone (the database requires `energy_sites.timezone`). (2) `Idempotency-Key` stays required on invitations; a replay returns the original invitation with `token` and `link` set to `null` because the token exists only as a hash; same key with a different body is `409`. (3) VAT is a percentage everywhere: `vatRatePercent` is a decimal string such as `"23.0000"`; `ENERGY_ACCOUNTING.md` sections 6 and 8 were corrected from fraction wording (`1 + vatRate`) to `1 + vatRatePercent / 100`. (4) Database types come from our own generator (`npm run db:types`, `-- --check` for drift) because Docker and the Supabase CLI are unavailable. Additive: error code `METHOD_NOT_ALLOWED` (405) added to the contract (the Worker already returned it), and the discovered-sites item is `providerSiteId` plus `name`.
+- **Alternatives:** a token-returning replay (rejected: would require storing the token); a fractional VAT rate (rejected: the database column and tariff documents already use percent); waiting for Docker (rejected: types are needed now).
+- **Rationale:** `docs/API_CONTRACT.md`, `docs/ENERGY_ACCOUNTING.md` and the migrations must agree; the shared package is where a disagreement becomes a failing test.
+
+## D-037 Zod 4 strict schemas, decimal strings and one route table (TASK-05)
+- **Status:** Approved
+- **Decision:** Request bodies and responses are `z.strictObject` schemas in `@autopw3/shared`; types are inferred, not hand-written. Money, rates and VAT are decimal strings with bounds mirroring the `numeric(p, s)` columns, parsed with a private `decimal.js` clone (precision 28, half up) so global configuration is untouched. Every endpoint of `API_CONTRACT.md` section 2 is one entry in `ROUTES` (method, path, access, task, query, body, response); `RouteBody`, `RouteQuery` and `RouteResponse` derive from it. Tests compare `ROUTES` with the contract table, and enums and bounds with the migration SQL.
+- **Alternatives:** hand-written interfaces beside schemas (rejected: drift); OpenAPI generation (rejected: another toolchain for one team).
+- **Rationale:** D-014 money model and D-005 (the backend and database are authoritative); the web app and the Worker cannot disagree if they import the same definition.
+
+## D-038 Normalisation boundary and persisted-source rule (TASK-05)
+- **Status:** Approved
+- **Decision:** Raw Tesla shapes live only in `apps/worker/src/providers/tesla/raw-types.ts` (loose records, `UNVERIFIED`) with a declared `NormaliseLiveStatus` function type as the only crossing. Shared schemas for persisted samples and intervals accept `source: 'TESLA'` only, matching the database `CHECK`; only API live and demo responses accept `'DEMO'`. Command lifecycle (`PENDING`, `CONFIRMED`, `FAILED`, `UNKNOWN`) is data in shared constants, with `physicalOutcomeGuaranteed` fixed at `false`.
+- **Alternatives:** one sample schema with both sources (rejected: it would let demo data be validated as writable).
+- **Rationale:** AGENTS.md hard rules: demo data never reaches live tables; never invent Tesla payloads.
+
+## D-039 Proposed shapes the documents do not define (TASK-05)
+- **Status:** Proposed (to confirm in the task that implements each)
+- **Decision:** Command parameter shapes per kind (our normalised model; the Tesla payload mapping stays `UNVERIFIED`), rule definition version 1 (conditions `TIME_WINDOW`, `BATTERY_SOC`, `IMPORT_RATE` combined with AND, actions are command requests, 1 to 10 conditions and 1 to 5 actions), the export and delete request and response bodies, tariff problem codes, and the mapping from database error messages to API error codes (`DB_ERROR_TO_API_ERROR`).
+- **Alternatives:** leave them undefined (rejected: tasks 14 to 19 need a shape to build against and a test to change when the shape changes).
+- **Rationale:** Smallest shape that satisfies the contract; each is marked in the code and listed in `docs/KNOWN_LIMITATIONS.md`.

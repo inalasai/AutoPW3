@@ -44,6 +44,7 @@ npm run secrets:scan   # Secretlint
 npm run db:verify      # migrations + constraint checks on a throwaway PostgreSQL 17 (Task 03; slow)
 npm run db:dictionary  # db:verify + regenerate docs/DATABASE_DICTIONARY.md
 npm run db:test        # SQL security tests on a throwaway PostgreSQL 17 (Task 04; a few minutes)
+npm run db:types       # regenerate DB types; add -- --check to fail if stale (Task 05; slow)
 npm run check          # all of the above
 npm run dev            # web app, demo mode, no credentials
 npm run dev:worker     # Worker via wrangler dev (build the web app first)
@@ -52,5 +53,4 @@ Not available until their task is complete:
 ```bash
 npm run test:e2e   # Playwright (from Task 07)
 npm run db:reset   # local Supabase reset: defined in Task 03, needs Docker, NOT_EXECUTED so far
-npm run db:types   # regenerate DB types (Task 05)
 ```
