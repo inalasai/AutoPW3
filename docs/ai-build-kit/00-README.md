@@ -67,10 +67,10 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 
 **Phase 0 — Discovery and contract**
 - [x] TASK-00 Tesla Fleet API feasibility spike (research only) — done, see `docs/handoffs/TASK-00.md`
-- [x] TASK-01 Architecture blueprint (ratifies `04-REPO-STRUCTURE.md`) — documents complete, **awaiting owner approval**, see `docs/handoffs/TASK-01.md`
+- [x] TASK-01 Architecture blueprint (ratifies `04-REPO-STRUCTURE.md`) — approved by the owner 2026-10-23, see `docs/handoffs/TASK-01.md`
 
 **Phase 1 — Foundation**
-- [ ] TASK-02 Repository bootstrap
+- [x] TASK-02 Repository bootstrap — checks pass from a clean clone; CI and PR `NOT_EXECUTED`, see `docs/handoffs/TASK-02.md`
 - [ ] TASK-03 Database schema and migrations
 - [ ] TASK-04 RLS, grants, admin bootstrap, SQL security tests
 - [ ] TASK-05 Shared types and validation
