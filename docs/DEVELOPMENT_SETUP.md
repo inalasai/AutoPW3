@@ -38,10 +38,13 @@ npm run build && npm run dev:worker   # Worker on http://localhost:8787, serves 
 | `npm run format` | Prettier write |
 | `npm test` | Vitest in every workspace |
 | `npm run build` | Vite build for web (`apps/web/dist`), `wrangler deploy --dry-run` bundle for the Worker (`apps/worker/dist`) |
+| `npm run db:verify` | Applies `supabase/migrations` to a throwaway PostgreSQL 17 and runs constraint checks (TASK-03; takes a few minutes; not part of `npm run check`) |
+| `npm run db:dictionary` | `db:verify` plus regenerates `docs/DATABASE_DICTIONARY.md` |
+| `npm run db:reset` | `supabase db reset` on a local Supabase stack. Needs Docker; `NOT_EXECUTED` so far |
 | `npm run secrets:scan` | Secretlint over the repository |
 | `npm run check` | All of the above in order |
 
-Not yet available: `npm run test:e2e` (TASK-07), `npm run db:reset` (TASK-03), `npm run db:test` (TASK-04), `npm run db:types` (TASK-05).
+Not yet available: `npm run test:e2e` (TASK-07), `npm run db:test` (TASK-04), `npm run db:types` (TASK-05). Database setup details: `docs/DATABASE_SETUP.md`.
 
 ## Workspaces and import rules
 Packages: `@autopw3/shared`, `@autopw3/domain`, `@autopw3/web`, `@autopw3/worker`. `shared` and `domain` are consumed as TypeScript source (no build step), so a change is visible to the apps immediately.
