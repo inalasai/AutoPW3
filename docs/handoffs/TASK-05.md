@@ -65,7 +65,7 @@ No endpoint is implemented. The contract gained: optional `timezone` on `POST /h
 | `npm run secrets:scan` | yes | pass | no findings |
 | `npm run db:test` | yes | pass | 336 ok, 0 not ok across 11 files |
 | `npm run db:verify` | yes | pass | `All database checks passed` |
-| Clean clone: `git clone`, `npm ci`, `npm run check`, `npm run db:types -- --check` | see Manual verification | | |
+| Clean clone of the branch into a temp folder: `npm ci`, `npm run check`, `npm run db:types -- --check` | yes | pass | all three exit 0; same test counts as above |
 | `npx supabase@2.122.0 gen types typescript --local` | no | `NOT_EXECUTED` | needs Docker |
 | GitHub Actions run | no | `NOT_EXECUTED` | nothing pushed |
 
