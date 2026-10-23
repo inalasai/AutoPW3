@@ -152,29 +152,55 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 
 ## Owner approval of TASK-01 (2026-10-23)
 - **Status:** Approved
-- **Decision:** The owner approved the TASK-01 blueprint on 2026-10-23 with the single word "approve": decisions D-004 to D-024 move from Proposed to Approved, and the defaults listed in docs/UNRESOLVED_QUESTIONS.md are accepted as working defaults. Questions that need external facts or owner action (Q-01 Tesla application, Q-02 EU base URL, Q-04 payment method and billing limit, Q-06 read-only live verification, Q-13 Supabase signing keys) stay open and are not answered by this approval.
+- **Decision:** The owner approved the TASK-01 blueprint on 2026-10-23 with the single word "approve": decisions D-004 to D-024 move from Proposed to Approved, and the defaults listed in `docs/UNRESOLVED_QUESTIONS.md` are accepted as working defaults. Questions that need external facts or owner action (Q-01 Tesla application, Q-02 EU base URL, Q-04 payment method and billing limit, Q-06 read-only live verification, Q-13 Supabase signing keys) stay open and are not answered by this approval.
 - **Rationale:** The TASK-01 handoff requires owner approval before TASK-02 begins. The original Proposed status lines above are left unchanged (append-only register).
+
 ## D-025 TypeScript pinned to 6.0.3, not 7.0.2 (TASK-02)
 - **Status:** Approved (stop-condition correction, TASK-02)
-- **Decision:** Root 	ypescript is pinned to 6.0.3. The newest release on npm (7.0.2) cannot be installed together with 	ypescript-eslint 8.72.0, whose peer range is 	ypescript >=4.8.4 <6.1.0 (
-pm install failed with ERESOLVE).
-- **Alternatives:** TypeScript 7 with --force or --legacy-peer-deps (rejected: unsupported, ESLint typing rules may break silently); dropping 	ypescript-eslint (rejected: loses the lint rules this project depends on).
-- **Rationale:** Task 02 stop condition: correct the version, record it, do not change architecture. Revisit when 	ypescript-eslint supports TypeScript 7.
+- **Decision:** Root `typescript` is pinned to 6.0.3. The newest release on npm (7.0.2) cannot be installed together with `typescript-eslint` 8.72.0, whose peer range is `typescript >=4.8.4 <6.1.0` (`npm install` failed with `ERESOLVE`).
+- **Alternatives:** TypeScript 7 with `--force` or `--legacy-peer-deps` (rejected: unsupported, ESLint typing rules may break silently); dropping `typescript-eslint` (rejected: loses the lint rules this project depends on).
+- **Rationale:** Task 02 stop condition: correct the version, record it, do not change architecture. Revisit when `typescript-eslint` supports TypeScript 7.
 
 ## D-026 Worker tests run in Node with Vitest, not a workerd pool (TASK-02)
 - **Status:** Approved
-- **Decision:** pps/worker tests call handleRequest(request, env) directly in Node with a fake ASSETS binding. @cloudflare/vitest-pool-workers is not installed in TASK-02. Local runtime behaviour is checked separately with wrangler dev.
+- **Decision:** `apps/worker` tests call `handleRequest(request, env)` directly in Node with a fake `ASSETS` binding. `@cloudflare/vitest-pool-workers` is not installed in TASK-02. Local runtime behaviour is checked separately with `wrangler dev`.
 - **Alternatives:** workerd pool now (rejected for the skeleton: extra dependency and moving parts before any binding needs it); revisit in TASK-14 if tests need real Workers APIs.
 - **Rationale:** Smallest toolchain that proves the handler contract. Limitation recorded as L-022.
 
-## D-027 Server database key variable is SUPABASE_SECRET_KEY (TASK-02)
+## D-027 Server database key variable is `SUPABASE_SECRET_KEY` (TASK-02)
 - **Status:** Approved
-- **Decision:** .env.example and the lint rule use SUPABASE_SECRET_KEY (the name in the approved SYSTEM_ARCHITECTURE.md section 8) instead of the kit's provisional SUPABASE_SERVICE_ROLE_KEY. docs/CREDENTIALS.md was updated. SUPABASE_ANON_KEY is unchanged. Whether the project uses Supabase's newer publishable/secret keys or legacy anon/service-role keys is UNVERIFIED until the Supabase project exists (Q-13).
+- **Decision:** `.env.example` and the lint rule use `SUPABASE_SECRET_KEY` (the name in the approved `SYSTEM_ARCHITECTURE.md` section 8) instead of the kit's provisional `SUPABASE_SERVICE_ROLE_KEY`. `docs/CREDENTIALS.md` was updated. `SUPABASE_ANON_KEY` is unchanged. Whether the project uses Supabase's newer publishable/secret keys or legacy anon/service-role keys is `UNVERIFIED` until the Supabase project exists (Q-13).
 - **Alternatives:** keep the old name (rejected: two names for one secret).
 - **Rationale:** One name per secret across documents (Task 01 consistency rule).
 
 ## D-028 Dependency pinning, line endings and formatting scope (TASK-02)
 - **Status:** Approved
-- **Decision:** All dependency versions are exact (no ^ or ~) with package-lock.json committed. .gitattributes forces LF. Prettier checks code and config only (docs/, supabase/ and all Markdown are excluded). ESLint enforces the import-direction table, no ambient time or randomness in packages/domain, and a heuristic float-money rule; scripts/check-lint-rules.mjs proves each rule fires.
+- **Decision:** All dependency versions are exact (no `^` or `~`) with `package-lock.json` committed. `.gitattributes` forces LF. Prettier checks code and config only (`docs/`, `supabase/` and all Markdown are excluded). ESLint enforces the import-direction table, no ambient time or randomness in `packages/domain`, and a heuristic float-money rule; `scripts/check-lint-rules.mjs` proves each rule fires.
 - **Alternatives:** caret ranges (rejected: the task requires pinned versions); formatting all Markdown (rejected: rewrites approved documents).
 - **Rationale:** Reproducible installs and rules that cannot rot silently.
+
+## D-029 Database verification without Docker: embedded PostgreSQL 17 (TASK-03)
+- **Status:** Approved
+- **Decision:** Because Docker, `psql` and the Supabase CLI were not available, migrations are verified by `npm run db:verify`, which starts a throwaway PostgreSQL 17 through the `embedded-postgres` npm package (devDependencies `embedded-postgres` 17.10.0-beta.17, `pg` 8.23.1, `@types/pg` 8.23.1, all MIT; the "beta" suffix is the package's own label, the server is PostgreSQL 17.10). A test-only shim (`scripts/db/local-shim.sql`) supplies `auth.users`, the roles `anon`/`authenticated`/`service_role` and Supabase's default table grants. `npm run db:reset` is defined as `supabase db reset` but is `NOT_EXECUTED`.
+- **Alternatives:** PGlite (rejected: WASM build, less faithful to real PostgreSQL behaviour such as roles and `pg_timezone_names`); skipping verification (rejected: AGENTS.md rule on real checks).
+- **Rationale:** Real PostgreSQL catches real constraint and exclusion-constraint behaviour. It does not replace a run on a real Supabase stack or the TASK-04 pgTAP tests (L-026, L-027).
+
+## D-030 TASK-03 schema choices and deviations from DATABASE_DESIGN.md
+- **Status:** Approved
+- **Decision:** The migrations implement `docs/DATABASE_DESIGN.md` with these differences, each made to enforce an existing rule in the database:
+  1. Composite foreign keys `(site_id, household_id) -> energy_sites (id, household_id)` (also `(season_id, tariff_id)`, `(override_id, tariff_id)`, `(rule_id, site_id)`) so child rows cannot cross households, sites or tariffs.
+  2. Exclusion constraint rejecting equal-priority overlapping `tariff_overrides` (design left this to the engine).
+  3. `household_settings`: table-level checks `stale_after_seconds > live_background_interval_minutes * 60` (design said "in function") and `live_on_demand_min_interval_seconds >= 30` (D-023).
+  4. `scheduled_jobs.household_id` added (nullable, cascade) for household-level jobs such as `token_maintenance`.
+  5. No extra descending index on `powerwall_metrics_log`: the unique `(site_id, sampled_at)` index serves range scans in both directions.
+  6. `device_command_log.kind` uses upper-case names for the six endpoints TASK-00 marked `DOCUMENTED`: `SET_BACKUP_RESERVE`, `SET_OPERATION_MODE`, `SET_GRID_IMPORT_EXPORT`, `SET_STORM_MODE`, `SET_OFF_GRID_VEHICLE_CHARGING_RESERVE`, `SET_TIME_OF_USE_SETTINGS`. Payloads remain `UNVERIFIED`.
+  7. `automation_executions` check constraints: a non-`ACTIVE` evaluation can never be `ACTED` and never links a command (dry run never acts).
+  8. Additional integrity checks: tariff direction-specific columns, `FLAT` iff a flat rate is present, VAT rate present iff taxed, slot belongs to at most one of season/override, daily rollup length 23 to 25 hours, hourly bucket on a whole UTC hour, nonce length 12 bytes, `https` Fleet base URL, 32-byte hashes.
+  9. Append-only triggers on `device_command_events` and `audit_log` allow only foreign-key cascades (trigger depth > 1) and, for `audit_log`, the `ON DELETE SET NULL` of `actor_user_id`. Retention deletes arrive in TASK-16 through a reviewed function.
+  10. Timezone validation accepts any `pg_timezone_names` entry except `posix/` and `right/` aliases.
+- **Alternatives:** keep the design literally and rely on the engine (rejected for items 1, 2, 7: cheap to enforce in the database and the database is authoritative).
+- **Rationale:** Rules 1, 3, 5 and the "database is authoritative" principle. Items are listed in the TASK-03 handoff for owner review.
+
+## Note on a formatting repair (TASK-03)
+- **Status:** Approved
+- **Decision:** The entries from the TASK-01 approval record to D-028 and limitations L-021 to L-025 were first committed in TASK-02 with inline code formatting stripped and some words corrupted by a PowerShell escaping fault in the tool used to append them (for example "typescript" shown with a leading tab). Their wording was restored in TASK-03 from the original text. No decision content changed. D-001 to D-024 and L-001 to L-020 were not touched.

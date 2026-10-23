@@ -24,8 +24,13 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-018 | Privacy | Deleted data may persist in Supabase backups for their retention window | UNVERIFIED | TASK-01 |
 | L-019 | UX | Invitations are shared by copying a link; no email delivery in v1 | NOT_EXECUTED | TASK-01 |
 | L-020 | Hosting | `.well-known` public key file serving as a Worker static asset and Cloudflare-managed nameserver requirement not yet tested | UNVERIFIED | TASK-01 |
-| L-021 | Quality | The float-money lint rule only forbids parseFloat and .toFixed(); other float arithmetic on money is not detected by tooling | NOT_EXECUTED | TASK-02 |
-| L-022 | Testing | Worker tests run in Node with a fake ASSETS binding, not in workerd; real-runtime behaviour is checked only by manual wrangler dev | NOT_EXECUTED | TASK-02 |
-| L-023 | CI | .github/workflows/ci.yml has not run on GitHub; Linux and Node 22 behaviour is unverified | NOT_EXECUTED | TASK-02 |
-| L-024 | Security | The Content-Security-Policy in pps/web/public/_headers forbids inline styles and scripts; UI libraries that inject inline styles will need a reviewed policy change | NOT_EXECUTED | TASK-02 |
-| L-025 | Tooling | 	ypescript is held at 6.0.3 because 	ypescript-eslint does not yet support TypeScript 7 (D-025) | UNVERIFIED | TASK-02 |
+| L-021 | Quality | The float-money lint rule only forbids `parseFloat` and `.toFixed()`; other float arithmetic on money is not detected by tooling | NOT_EXECUTED | TASK-02 |
+| L-022 | Testing | Worker tests run in Node with a fake `ASSETS` binding, not in workerd; real-runtime behaviour is checked only by manual `wrangler dev` | NOT_EXECUTED | TASK-02 |
+| L-023 | CI | `.github/workflows/ci.yml` has not run on GitHub; Linux and Node 22 behaviour is unverified | NOT_EXECUTED | TASK-02 |
+| L-024 | Security | The Content-Security-Policy in `apps/web/public/_headers` forbids inline styles and scripts; UI libraries that inject inline styles will need a reviewed policy change | NOT_EXECUTED | TASK-02 |
+| L-025 | Tooling | `typescript` is held at 6.0.3 because `typescript-eslint` does not yet support TypeScript 7 (D-025) | UNVERIFIED | TASK-02 |
+| L-026 | Testing | Migrations verified on PostgreSQL 17 with a shim for `auth.users` and the Supabase roles, not on a real Supabase stack (`supabase db reset` not run) | NOT_EXECUTED | TASK-03 |
+| L-027 | Tooling | `supabase/config.toml` written by hand and never loaded by the Supabase CLI | UNVERIFIED | TASK-03 |
+| L-028 | Tariffs | Not enforceable as constraints, left to the tariff engine: full-day slot coverage, overlap between `ALL` and `WEEKDAY`/`WEEKEND` slots, season range validity, same household/direction across versions of one `tariff_key`, price points only on `DYNAMIC` tariffs | NOT_EXECUTED | TASK-03 |
+| L-029 | Data | `device_command_log` command kinds are limited to the six TASK-00 `DOCUMENTED` endpoints; their payloads are `UNVERIFIED` and the adapter is mock-only | UNVERIFIED | TASK-03 |
+| L-030 | Testing | `npm run db:verify` takes a few minutes (server start-up) and is not part of `npm run check` | NOT_EXECUTED | TASK-03 |
