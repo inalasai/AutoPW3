@@ -14,10 +14,21 @@ export type AuthConfig =
   /** Live mode without a usable setup. The app shows `reason` instead of starting. Never holds a value from the variables. */
   | { kind: 'invalid'; reason: string };
 
+/**
+ * Where the Live View gets its readings. Chosen by configuration, never by editing code.
+ *  - demo: the synthetic demo provider. Everything it shows is labelled DEMO.
+ *  - live: the live provider. It does not exist yet (Tesla adapter TASK-15, ingestion TASK-16), so the Live View
+ *    says so instead of showing anything. It never falls back to demo data.
+ *  - invalid: the setting is unusable; the Live View shows `reason`.
+ */
+export type TelemetryConfig =
+  { kind: 'demo' } | { kind: 'live' } | { kind: 'invalid'; reason: string };
+
 export interface AppConfig {
   /** True when the app shows synthetic, clearly labelled DEMO data only. */
   demoMode: boolean;
   auth: AuthConfig;
+  telemetry: TelemetryConfig;
 }
 
 export interface ReadConfigOptions {
@@ -112,11 +123,38 @@ function readAuth(env: Record<string, string | undefined>, isDev: boolean): Auth
   return { kind: 'supabase', url: parsed.origin, anonKey };
 }
 
+/**
+ * VITE_TELEMETRY_PROVIDER is demo or live. Unset means demo in demo mode and live otherwise, so a real
+ * deployment never shows demo data by default. live together with demo mode is a contradiction and is refused.
+ */
+function readTelemetry(
+  env: Record<string, string | undefined>,
+  demoMode: boolean,
+): TelemetryConfig {
+  const value = (env['VITE_TELEMETRY_PROVIDER'] ?? '').trim().toLowerCase();
+  if (value === '') return { kind: demoMode ? 'demo' : 'live' };
+  if (value === 'demo') return { kind: 'demo' };
+  if (value === 'live') {
+    return demoMode
+      ? {
+          kind: 'invalid',
+          reason:
+            'VITE_TELEMETRY_PROVIDER=live needs VITE_DEMO_MODE=false. Demo mode shows demo data only.',
+        }
+      : { kind: 'live' };
+  }
+  return { kind: 'invalid', reason: 'VITE_TELEMETRY_PROVIDER must be demo or live.' };
+}
+
 export function readConfig(
   env: Record<string, string | undefined>,
   { isDev = false }: ReadConfigOptions = {},
 ): AppConfig {
   // Demo is the safe default: only an explicit "false" turns it off.
   const demoMode = env['VITE_DEMO_MODE'] !== 'false';
-  return { demoMode, auth: demoMode ? { kind: 'none' } : readAuth(env, isDev) };
+  return {
+    demoMode,
+    auth: demoMode ? { kind: 'none' } : readAuth(env, isDev),
+    telemetry: readTelemetry(env, demoMode),
+  };
 }

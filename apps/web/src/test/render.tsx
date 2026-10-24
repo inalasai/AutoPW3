@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@autopw3/shared';
 import { AppFrame } from '../app/App';
 import type { EffectsMode } from '../app/effects';
+import type { TelemetryConfig } from '../lib/config';
 import type { AuthClient } from '../features/auth/types';
 import { createMockAuthClient } from '../features/auth/mock/mock-client';
 import type { MockAuthClient } from '../features/auth/mock/mock-client';
@@ -27,6 +28,8 @@ export interface RenderAppOptions {
   client?: AuthClient;
   /** `null` leaves the choice to the provider (stored value, then system preference). */
   effects?: EffectsMode | null;
+  /** Where the Live View gets readings. Default: demo in demo mode, live (no provider yet) otherwise. */
+  telemetry?: TelemetryConfig;
 }
 
 /** A mock identity client with one account of each kind, already signed in as `account` (or nobody). */
@@ -44,12 +47,13 @@ export function renderApp({
   account = null,
   client,
   effects = 'on',
+  telemetry = { kind: demoMode ? 'demo' : 'live' },
 }: RenderAppOptions = {}) {
   const authClient = demoMode ? null : (client ?? mockClientFor(account));
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AppFrame
-        config={{ demoMode, auth: demoMode ? { kind: 'none' } : { kind: 'mock' } }}
+        config={{ demoMode, auth: demoMode ? { kind: 'none' } : { kind: 'mock' }, telemetry }}
         authClient={authClient}
         {...(effects !== null ? { initialEffects: effects } : {})}
       />

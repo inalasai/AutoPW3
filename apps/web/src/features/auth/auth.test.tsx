@@ -759,7 +759,9 @@ describe('AppFrame without a client', () => {
   it('renders in demo mode with no sign-in provider at all', async () => {
     render(
       <MemoryRouter initialEntries={['/admin']}>
-        <AppFrame config={{ demoMode: true, auth: { kind: 'none' } }} />
+        <AppFrame
+          config={{ demoMode: true, auth: { kind: 'none' }, telemetry: { kind: 'demo' } }}
+        />
       </MemoryRouter>,
     );
     expect(await heading('Admin')).toBeInTheDocument();

@@ -131,3 +131,31 @@ describe('looksLikePrivilegedKey and parseSupabaseUrl', () => {
     expect(parseSupabaseUrl('ftp://example.com')).toBeNull();
   });
 });
+
+describe('readConfig: telemetry provider', () => {
+  it('defaults to demo data in demo mode and to live (no demo fallback) otherwise', () => {
+    expect(readConfig({}).telemetry).toEqual({ kind: 'demo' });
+    expect(readConfig(LIVE).telemetry).toEqual({ kind: 'live' });
+  });
+
+  it('follows VITE_TELEMETRY_PROVIDER when it is consistent with the mode', () => {
+    expect(readConfig({ VITE_TELEMETRY_PROVIDER: 'demo' }).telemetry).toEqual({ kind: 'demo' });
+    expect(readConfig({ ...LIVE, VITE_TELEMETRY_PROVIDER: 'live' }).telemetry).toEqual({
+      kind: 'live',
+    });
+    expect(readConfig({ ...LIVE, VITE_TELEMETRY_PROVIDER: ' Demo ' }).telemetry).toEqual({
+      kind: 'demo',
+    });
+  });
+
+  it('refuses live data in demo mode: demo mode never reaches a live source', () => {
+    const { telemetry } = readConfig({ VITE_TELEMETRY_PROVIDER: 'live' });
+    expect(telemetry.kind).toBe('invalid');
+  });
+
+  it('refuses an unknown value, and the reason does not echo it', () => {
+    const { telemetry } = readConfig({ VITE_TELEMETRY_PROVIDER: 'tesla-secret-xyz' });
+    expect(telemetry.kind).toBe('invalid');
+    expect(JSON.stringify(telemetry)).not.toContain('tesla-secret-xyz');
+  });
+});
