@@ -2,15 +2,9 @@ import { Link } from 'react-router';
 import { useState } from 'react';
 import { COMMAND_CAPABILITIES } from '@autopw3/shared';
 import { buttonClasses } from '../../components/ui/Button';
-import {
-  ConnectionIndicator,
-  DataTable,
-  FreshnessBadge,
-  GlassCard,
-  TelemetryValue,
-} from '../../components/ui/display';
+import { ConnectionIndicator, DataTable, GlassCard } from '../../components/ui/display';
 import { EmptyState, ErrorBanner } from '../../components/ui/feedback';
-import { BoltIcon, ChartIcon, PulseIcon } from '../../components/ui/icons';
+import { BoltIcon, ChartIcon } from '../../components/ui/icons';
 import { SegmentedControl, Tabs } from '../../components/ui/Tabs';
 import { useToast } from '../../components/ui/toast';
 import { ReadOnlyNotice, WriteButton } from '../../features/auth/permissions';
@@ -20,36 +14,6 @@ import { Page, PlannedFeature, useDocumentTitle } from './Page';
   Structured placeholders (TASK-06). They show the page frame, status area and the components each feature will
   use, with no data fetching, no authentication and no energy calculation. A dash means "no data", never zero.
 */
-
-export function LivePage() {
-  return (
-    <Page
-      title="Live"
-      description="Real-time energy flow for your site."
-      status={
-        <>
-          <ConnectionIndicator state="DISCONNECTED" detail="No site connected" />
-          <FreshnessBadge state="UNAVAILABLE" />
-        </>
-      }
-    >
-      <GlassCard title="Now" headingLevel={2}>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <TelemetryValue label="Solar" value={null} unit="kW" tone="solar" />
-          <TelemetryValue label="Battery" value={null} unit="kW" tone="battery" />
-          <TelemetryValue label="Grid" value={null} unit="kW" tone="grid" />
-          <TelemetryValue label="Home" value={null} unit="kW" />
-        </div>
-      </GlassCard>
-      <PlannedFeature
-        title="Energy flow"
-        task="09"
-        icon={PulseIcon}
-        description="An animated diagram of solar, battery, home and grid, with the age of the data shown honestly."
-      />
-    </Page>
-  );
-}
 
 type Resolution = 'interval' | 'hourly' | 'daily';
 

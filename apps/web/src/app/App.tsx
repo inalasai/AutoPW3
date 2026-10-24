@@ -21,11 +21,11 @@ import {
   AnalyticsPage,
   AutomationPage,
   ControlsPage,
-  LivePage,
   NotFoundPage,
   SettingsPage,
   TariffsPage,
 } from './pages/AppPages';
+import { LivePage } from './pages/LivePage';
 import { APP_ROUTES, DEFAULT_PATH, visibleNavRoutes } from './routes';
 import { AppShell, AuthLayout } from './shell/AppShell';
 
@@ -82,7 +82,7 @@ function AppRoutes({ config }: { config: AppConfig }) {
       >
         <Route element={<RequireSession />}>
           <Route index element={<Navigate to={DEFAULT_PATH} replace />} />
-          <Route path="/live" element={<LivePage />} />
+          <Route path="/live" element={<LivePage telemetry={config.telemetry} />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/tariffs" element={<TariffsPage />} />
           <Route path="/controls" element={<ControlsPage />} />

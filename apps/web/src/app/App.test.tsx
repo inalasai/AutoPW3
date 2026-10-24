@@ -259,11 +259,13 @@ describe('effects switch', () => {
     expect(document.documentElement.dataset['effects']).toBe('off');
   });
 
-  it('keeps every page content present with effects off (nothing is only decoration)', () => {
+  it('keeps every page content present with effects off (nothing is only decoration)', async () => {
     renderApp({ path: '/live', effects: 'off' });
     expect(screen.getByRole('heading', { level: 1, name: 'Live' })).toBeInTheDocument();
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
-    expect(screen.getAllByText('No data')).toHaveLength(4);
+    expect(await screen.findByText(/^Updated /)).toBeInTheDocument();
+    const readouts = screen.getByRole('list', { name: 'Power now' });
+    expect(within(readouts).getAllByText('kW')).toHaveLength(4);
+    expect(screen.getByRole('heading', { level: 2, name: 'Battery' })).toBeInTheDocument();
   });
 });
 
