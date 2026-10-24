@@ -33,7 +33,7 @@ npm run build && npm run dev:worker   # Worker on http://localhost:8787, serves 
 |---|---|
 | `npm run dev` | Vite dev server for `apps/web` |
 | `npm run dev:worker` | `wrangler dev` for `apps/worker` |
-| `npm run typecheck` | `tsc` in every workspace (strict) |
+| `npm run typecheck` | `tsc` in every workspace (strict), then in `e2e/` |
 | `npm run lint` | ESLint, then `scripts/check-lint-rules.mjs` (proves the architecture rules fire), then Prettier check |
 | `npm run format` | Prettier write |
 | `npm test` | Vitest in every workspace |
@@ -43,10 +43,11 @@ npm run build && npm run dev:worker   # Worker on http://localhost:8787, serves 
 | `npm run db:test` | Runs the SQL security tests in `supabase/tests/database` (RLS, roles, bootstrap, invitations, audit) on a throwaway PostgreSQL 17 after applying the migrations, and checks the policies against `docs/RLS_POLICY_MATRIX.md` (TASK-04; takes a few minutes; not part of `npm run check`) |
 | `npm run db:dictionary` | `db:verify` plus regenerates `docs/DATABASE_DICTIONARY.md` |
 | `npm run db:reset` | `supabase db reset` on a local Supabase stack. Needs Docker; `NOT_EXECUTED` so far |
+| `npm run test:e2e` | Playwright smoke tests (TASK-07) against the dev server in mock sign-in mode (`VITE_DEMO_MODE=false VITE_AUTH_MODE=mock`, port 5183). Needs no credentials. First run: `npx playwright install chromium`. Not part of `npm run check` because it needs a browser download |
 | `npm run secrets:scan` | Secretlint over the repository |
 | `npm run check` | All of the above in order |
 
-Not yet available: `npm run test:e2e` (TASK-07). Database setup details: `docs/DATABASE_SETUP.md`.
+Sign-in setup (Supabase Auth settings, redirect URLs, mock mode): `docs/AUTHENTICATION_SETUP.md`. Database setup details: `docs/DATABASE_SETUP.md`.
 
 ## Workspaces and import rules
 Packages: `@autopw3/shared`, `@autopw3/domain`, `@autopw3/web`, `@autopw3/worker`. `shared` and `domain` are consumed as TypeScript source (no build step), so a change is visible to the apps immediately.

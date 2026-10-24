@@ -36,7 +36,7 @@ AutoPW3 is a subscription-free residential energy-management web app for Tesla P
 Root scripts (npm workspaces, created in Task 02; details in `docs/DEVELOPMENT_SETUP.md`):
 ```bash
 npm install
-npm run typecheck      # tsc, strict, every workspace
+npm run typecheck      # tsc, strict, every workspace and e2e/
 npm run lint           # ESLint + architecture rule checks + Prettier
 npm test               # Vitest, every workspace
 npm run build          # Vite build (web) + wrangler dry-run bundle (worker)
@@ -46,11 +46,11 @@ npm run db:dictionary  # db:verify + regenerate docs/DATABASE_DICTIONARY.md
 npm run db:test        # SQL security tests on a throwaway PostgreSQL 17 (Task 04; a few minutes)
 npm run db:types       # regenerate DB types; add -- --check to fail if stale (Task 05; slow)
 npm run check          # all of the above
+npm run test:e2e       # Playwright smoke tests, mock sign-in, no credentials (Task 07; first run: npx playwright install chromium; not in `check`)
 npm run dev            # web app, demo mode, no credentials
 npm run dev:worker     # Worker via wrangler dev (build the web app first)
 ```
 Not available until their task is complete:
 ```bash
-npm run test:e2e   # Playwright (from Task 07)
 npm run db:reset   # local Supabase reset: defined in Task 03, needs Docker, NOT_EXECUTED so far
 ```

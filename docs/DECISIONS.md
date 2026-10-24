@@ -291,3 +291,46 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Approved
 - **Decision:** `packages/shared/package.json` declares `"sideEffects": false` so the web build tree-shakes unused schemas (web bundle 433 kB to 290 kB, 91 kB gzip).
 - **Rationale:** The package holds pure schemas and helpers; the larger bundle came from importing one function.
+
+## D-046 Authentication architecture: `AuthClient` with a live and a development-only adapter (TASK-07)
+- **Status:** Approved (dependency `@supabase/supabase-js` 2.118.0, MIT, approved by the owner)
+- **Decision:** The web app talks to identity through one interface, `AuthClient` (`features/auth/types.ts`). The live adapter wraps `supabase-js` (PKCE flow, persisted session, `signOut({ scope: 'local' })`) and is loaded lazily. A second adapter keeps accounts, passwords and memberships in page memory and exists for component tests and the Playwright smoke test; `create-client.ts` imports it only inside `import.meta.env.DEV`, so a production build does not contain it, and `VITE_AUTH_MODE=mock` is refused outside development. Demo mode builds no client at all.
+- **Alternatives:** a local Supabase stack in tests (rejected: needs Docker, not available here, slow); mocking `fetch` (rejected: couples tests to Supabase wire formats); a mock that ships in production behind a flag (rejected: a switch that can be flipped is a hole).
+- **Rationale:** AGENTS.md: no credentials in tests; the same UI code path runs against either adapter. The live adapter is tested only against a faked `SupabaseClient` and stays `AWAITING_CREDENTIALS` against a real project (L-057).
+
+## D-047 The role comes only from the database response (TASK-07)
+- **Status:** Approved
+- **Decision:** `AuthState` is `loading | unauthenticated | expired | error | no-household | authorised`; only `authorised` carries a role, and that role is the `household_members` row returned under RLS. It is never read from `localStorage`, `sessionStorage`, JWT claims or user metadata. An unknown role value or malformed row is an error (fail closed). v1 has one household per person; `pickMembership` chooses deterministically (name, then id) if a second ever exists. The mock stores only a signed session token in the browser, so editing storage cannot change who or what the mock believes; tests edit storage and forge the token. A quiet re-check when the tab regains visibility reflects a role change made on the server without a reload.
+- **Rationale:** `SECURITY_MODEL.md`: backend and database are authoritative. This supersedes the `role` prop of D-042; `AppFrame` no longer accepts one.
+
+## D-048 Invitation acceptance calls `accept_invitation` directly for now (TASK-07)
+- **Status:** Approved (owner chose this)
+- **Decision:** `AuthClient.acceptInvitation(token)` calls the database function `accept_invitation(p_token)` as the signed-in person. The token is validated with the shared `InvitationTokenSchema` first, never rendered, and every failure shows one message. TASK-14 or TASK-19 switches the call to the Worker (rate limit, audit mapping, error mapping) by changing one method.
+- **Alternatives:** wait for the Worker endpoint (rejected: the waiting-for-an-invitation flow could not be completed or tested).
+- **Rationale:** The function is `security definer` and checks the caller's confirmed email and the token itself (TASK-04 tests); the browser gains nothing it could not already do through `rpc`.
+
+## D-049 No account enumeration in messages (TASK-07)
+- **Status:** Approved
+- **Decision:** Sign-in reports "The email or password is not correct." for an unknown address and a wrong password alike. Sign-up reports an already-registered address exactly as a new one (`user_already_exists` is swallowed). A password-reset request shows the same confirmation for any address and surfaces only network and rate-limit failures. An expired, used, withdrawn or unknown invitation reads the same. The minimum password length shown to people (12) is `PASSWORD_MIN_LENGTH` and must match the Supabase Auth setting.
+- **Rationale:** `SECURITY_MODEL.md` threat list; OWASP authentication guidance.
+
+## D-050 Supabase origin added to the Content Security Policy at build time (TASK-07)
+- **Status:** Approved (owner chose the Vite plugin)
+- **Decision:** `public/_headers` keeps `connect-src 'self'`. The plugin `cspConnectSrc` in `vite.config.ts` adds the origin of `VITE_SUPABASE_URL` to `dist/_headers` after the bundle is written, using the pure function `withConnectSrc` (unit-tested; refuses a malformed origin or a missing directive; idempotent). Demo and mock builds add nothing.
+- **Alternatives:** hand-editing `_headers` per deployment (rejected: easy to forget and breaks sign-in silently); `connect-src https:` (rejected: too wide).
+- **Rationale:** The browser must reach Supabase and nothing else.
+
+## D-051 Configuration validation refuses privileged keys (TASK-07)
+- **Status:** Approved
+- **Decision:** `readConfig` returns `AuthConfig = none | supabase | mock | invalid`. It rejects a `sb_secret_` key, a JWT whose `role` is `service_role`, placeholder values, a non-`https` URL (plain `http` only for loopback), and reduces the URL to its origin. The start-up screen shows the reason and never the value.
+- **Rationale:** AGENTS.md: no secrets in the browser; `VITE_` variables are public.
+
+## D-052 Focus moves to the page title after a navigation, including redirects (TASK-07)
+- **Status:** Approved
+- **Decision:** `useMoveFocusAfterNavigation` uses `useNavigationType`; the initial load is skipped and every later navigation, including a guard's redirect to `/login`, focuses `h1#page-title`. Applied in `AppShell` and `AuthLayout`. Extends D-043.
+- **Rationale:** A redirect that leaves focus on a removed element strands keyboard and screen-reader users.
+
+## D-053 Playwright adopted for the smoke tests (TASK-07)
+- **Status:** Approved (`@playwright/test` 1.64.1, Apache-2.0, dev dependency, approved by the owner)
+- **Decision:** `playwright.config.ts` runs the dev server on port 5183 with `VITE_DEMO_MODE=false VITE_AUTH_MODE=mock` and runs `e2e/*.spec.ts` at 1280 px and 360 px. `npm run test:e2e` is separate from `npm run check` because the first run needs a browser download; `npm run typecheck` includes `e2e/`.
+- **Rationale:** `TESTING.md` end-to-end layer. Keeping it out of `check` keeps the main gate offline-friendly (L-063).

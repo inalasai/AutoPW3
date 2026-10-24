@@ -77,7 +77,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 
 **Phase 2 — Frontend foundation**
 - [x] TASK-06 Design system and app shell - tokens with one effects switch, UI components, responsive shell, placeholder routes, `/dev/components`; PR and GitHub CI `NOT_EXECUTED`, see `docs/handoffs/TASK-06.md`
-- [ ] TASK-07 Authentication and permission-aware UI
+- [x] TASK-07 Authentication and permission-aware UI - Supabase Auth adapter, dev-only mock adapter, route guards, role-aware nav, Playwright smoke; real Supabase project `AWAITING_CREDENTIALS`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-07.md`
 
 **Phase 3 — Energy domain**
 - [ ] TASK-08 Telemetry model and demo provider

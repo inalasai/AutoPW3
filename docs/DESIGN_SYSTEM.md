@@ -1,6 +1,6 @@
 # Design system and application shell
 
-**Status:** built in TASK-06. Tokens, components, shell and placeholder pages exist and are tested. No feature behaviour: no data fetching, no authentication, no charts, no energy calculations.
+**Status:** built in TASK-06; authentication and permission-aware presentation added in TASK-07 (`docs/AUTHENTICATION_SETUP.md`). Tokens, components, shell and placeholder pages exist and are tested. No data fetching, no charts, no energy calculations.
 
 Code: `apps/web/src/styles/` (tokens), `apps/web/src/components/ui/` (components), `apps/web/src/app/` (routes, shell, pages). Browse every component at `/dev/components` while running `npm run dev`.
 
@@ -67,16 +67,17 @@ Route inventory is data in `src/app/routes.ts` (from `PRODUCT_REQUIREMENTS.md` s
 | `/automation` | Automation | yes | READ_ONLY | 18 |
 | `/settings` | Settings | yes | READ_ONLY | 15, 19 |
 | `/admin` | Admin | yes | ADMIN | 19 |
-| `/login`, `/register` | Sign in, Create account | Sign in link | public | 07 |
-| `/invite/:token` | Accept invitation (added: the PRD describes invitations; not in the task's route list) | no | public | 07, 19 |
+| `/login`, `/register`, `/forgot-password` | Sign in, Create account, Reset your password | Sign in link | public (signed-in people are sent on to `/live`) | 07 (built) |
+| `/reset-password`, `/auth/callback` | Choose a new password, Confirming your email (targets of Supabase email links) | no | public | 07 (built) |
+| `/invite/:token` | Accept invitation (added: the PRD describes invitations; not in the task's route list). Signed-out people sign in first and return here | no | public | 07 (built), 19 |
 | `*` | Page not found | no | n/a | n/a |
 | `/dev/components` | Component catalogue | no | **dev build only** | n/a |
 
 `/` redirects to `/live`. The Worker serves `index.html` for unknown paths, so deep links work.
 
-**Navigation visibility** (`visibleNavRoutes`): in demo mode every entry is shown (demo holds only synthetic data); with demo off only public entries are shown until a `role` is supplied, then entries up to that role (`roleAtLeast` from `@autopw3/shared`). TASK-07 passes the role from the server session through `AppFrame`'s `role` prop.
+**Navigation visibility** (`visibleNavRoutes`): in demo mode every entry is shown (demo holds only synthetic data); with demo off only public entries are shown until the signed-in account is loaded, then entries up to the role the server returned (`roleAtLeast` from `@autopw3/shared`). TASK-07 replaced `AppFrame`'s `role` prop: `AppRoutes` reads the role from `useAuth()` (`features/auth`), which takes it from the RLS-protected `household_members` query and from nothing stored in the browser. Route guards (`RequireSession`, `RequireRole`, `PublicOnly`) are interface behaviour only; a person below ADMIN who opens `/admin` sees the "Not authorised" page in place.
 
-**Shell:** skip link; demo banner region; sticky header (menu button below `lg`, DEMO pill, effects switch, Sign in); sidebar from `lg`; mobile drawer (`Modal` behaviour: trapped focus, Escape, focus returns to the menu button). On each navigation focus moves to `h1#page-title` and the document title updates.
+**Shell:** skip link; demo banner region; sticky header (menu button below `lg`, DEMO pill, effects switch, account controls: email, role label and Sign out when signed in, a Sign in link when signed out; hidden below `sm` and shown in the mobile drawer instead; nothing in demo mode); sidebar from `lg`; mobile drawer (`Modal` behaviour: trapped focus, Escape, focus returns to the menu button). On each navigation focus moves to `h1#page-title` and the document title updates.
 
 ## Accessibility
 - Keyboard: every control reachable and operable; visible 2 px `select` focus ring (computed style checked); no keyboard traps except intentional modal traps that release on close.

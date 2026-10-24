@@ -11,10 +11,12 @@ Never claim a check passed unless you ran it and saw the result. Anything not ru
 | API | Vitest | `apps/worker/**/*.test.ts` | Auth, roles, validation, cross-household denial, error sanitisation |
 | Database | pgTAP-style SQL (`npm run db:test` on a throwaway PostgreSQL 17 with a test shim; `supabase test db` on a real stack, NOT_EXECUTED so far) | `supabase/tests/database/` | RLS, grants, role escalation denial, bootstrap, invitations, audit, constraints (`npm run db:verify`) |
 | Contract drift | Vitest in `packages/shared` (`contract/`) and `npm run db:types -- --check` | route table vs `API_CONTRACT.md`, enums and bounds vs migrations, generated types vs migrations | Contract, shared types and database cannot silently disagree (`docs/DOMAIN_TYPES.md` section 7) |
-| End-to-end | Playwright | `e2e/` | Real journeys in the browser against mocks or a local stack |
+| End-to-end | Playwright | `e2e/` | Real journeys in the browser against mocks or a local stack. TASK-07: sign-in, protected routes, role-aware UI and tamper checks at 1280 px and 360 px against the development-only mock identity provider |
 | Live Tesla | manual only | owner-run | Real-site verification, never automated |
 
 ## Commands (after TASK-02, 03, 04, 07)
+`npm run test:e2e` is not part of `npm run check` (it needs a one-off `npx playwright install chromium`). Run it before handing off any task that changes the browser app.
+
 ```bash
 npm run typecheck
 npm run lint
