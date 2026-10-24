@@ -55,6 +55,7 @@ None.
 | `npm run typecheck` / `npm run lint` / `npm test` / `npm run build` / `npm run secrets:scan` | yes (as steps of `npm run check`) | pass | see above |
 | `npm run build` (alone) | yes | exit 0 | `wrangler deploy --dry-run` Total Upload 845.97 KiB, gzip 140.53 KiB |
 | `npm run db:verify`, `db:test`, `db:types -- --check` | no | NOT_EXECUTED | No database or type changes. Commands: `npm run db:verify`, `npm run db:test`, `npm run db:types -- --check` |
+| Clean clone of `Raj-AutoPW3` into a temp folder, then `npm ci` and `npm run check` | yes | exit 0 for both | same test counts as above (226 / 3 / 158 / 4) |
 | GitHub CI | no | NOT_EXECUTED | nothing pushed |
 
 Transient failure (recorded as L-056): during one earlier `npm run check`, the Worker `wrangler deploy --dry-run` step crashed with exit code -1073740791. `npm run build` then passed, and a full `npm run check` afterwards passed, so the failure was not reproduced and its cause is not known.
