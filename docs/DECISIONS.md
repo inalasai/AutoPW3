@@ -334,3 +334,40 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Approved (`@playwright/test` 1.64.1, Apache-2.0, dev dependency, approved by the owner)
 - **Decision:** `playwright.config.ts` runs the dev server on port 5183 with `VITE_DEMO_MODE=false VITE_AUTH_MODE=mock` and runs `e2e/*.spec.ts` at 1280 px and 360 px. `npm run test:e2e` is separate from `npm run check` because the first run needs a browser download; `npm run typecheck` includes `e2e/`.
 - **Rationale:** `TESTING.md` end-to-end layer. Keeping it out of `check` keeps the main gate offline-friendly (L-063).
+## D-054 Demo data is a seeded model, not stored files (TASK-08)
+- **Status:** Proposed (accepted with the task unless the owner objects)
+- **Decision:** The demo day, week and month are generated on demand by `DemoSiteModel` from a seed (`20260101`) and a fixed epoch (2026-01-01), covering up to 2031-01-01. Noise is a hash of the seed and the step index, not a random-number generator; the model simulates forward and remembers each step, so a value never depends on what was asked first. A test pins a fingerprint (FNV-1a over the JSON) of each dataset.
+- **Alternatives:** committed JSON fixtures (rejected: large diffs, cannot cover five years, tempting to hand-edit); a seeded PRNG stream (rejected: results would depend on the order of calls).
+- **Rationale:** Rule 6 and the task: same inputs give identical datasets; nothing is random at render time.
+
+## D-055 The telemetry provider interface is asynchronous and reports problems as typed errors (TASK-08)
+- **Status:** Proposed
+- **Decision:** `TelemetryProvider<S>` has `getCapabilities`, `getLiveSnapshot`, `getPowerSeries` and `getEnergySeries`; the last three return promises and throw `TelemetryProviderError` with a code (`RANGE_INVALID`, `RANGE_TOO_LARGE`, `OUT_OF_COVERAGE`, `INVALID_REQUEST`, `UNAVAILABLE`, `RATE_LIMITED` and so on). Series results carry the real resolution, the gaps and a completeness that is never rounded up. Energy buckets are whole and may extend beyond the requested range.
+- **Alternatives:** synchronous methods (rejected: the live adapter does I/O); returning `{ ok, error }` (rejected: the routes already map errors by code).
+- **Rationale:** API_CONTRACT section 1 ranges; rule 9 (never resample to finer data than the provider has).
+
+## D-056 Normalisation never silently corrects (TASK-08)
+- **Status:** Proposed
+- **Decision:** A missing value is `null` (reading `PARTIAL`). A value the shared schema cannot hold (negative solar or load, battery level outside 0 to 100, negative energy, NaN, Infinity) becomes `null` and the reading `SUSPECT`, with an issue naming the field and what was seen. A representable but doubtful value (implausible magnitude, failed balance) is kept and the reading is `SUSPECT`. Strings are never turned into numbers. Normalisation takes the receive time as an input and never reads a clock. Converting provider-native fields and signs happens in the provider adapter, which hands over a `RawPowerReading`.
+- **Alternatives:** clamping negatives to zero (rejected: hides a sign error and would book energy that was not there); coercing numeric strings (rejected: a provider that starts sending strings has probably changed units).
+- **Rationale:** Rules 8 and 9; ENERGY_ACCOUNTING section 2 (suspect samples are shown but excluded).
+
+## D-057 Balance tolerances and the plausibility limit are proposals (TASK-08)
+- **Status:** Proposed, `UNVERIFIED`
+- **Decision:** Power balance holds within the larger of 100 W and 5% of the load (the shared constants `BALANCE_TOLERANCE_FLOOR_W` and `BALANCE_TOLERANCE_PERCENT`); energy balance within the larger of 100 W for the interval and 5% of home consumption; magnitudes above 100 000 W are implausible. All can be changed through `ValidationOptions`.
+- **Rationale:** No real Tesla data exists yet (Q-06); real sites may need different values, which TASK-15 should check.
+
+## D-058 Freshness: a reading exactly at the threshold is fresh; future timestamps are not trusted (TASK-08)
+- **Status:** Proposed
+- **Decision:** `freshnessOf` computes age from an injected `now`: `FRESH` up to and including the threshold (default 3600 s, configurable), `STALE` after it, `UNAVAILABLE` for no or unreadable timestamp or one more than 120 s in the future. A timestamp up to 120 s ahead counts as age 0 (clock skew).
+- **Rationale:** Deterministic tests; a reading from the future must not look fresh.
+
+## D-059 The demo/live guard has three layers, and the live accounting gate is a placeholder (TASK-08)
+- **Status:** Proposed
+- **Decision:** (1) `LivePowerSample` has `source: 'TESLA'`, so passing a demo sample to a function that asks for live samples fails type checking; a test with `@ts-expect-error` proves it. (2) `assertLiveSource`, `requireLiveSamples` and `acceptForLiveIngestion` throw `DemoDataInLivePathError` for anything whose `source` is not exactly `'TESLA'`. (3) The database CHECK `source = 'TESLA'`. `selectAccountableSamples` is the gate the accounting engine (TASK-11) and ingestion (TASK-16) must start from; it also leaves `SUSPECT` samples out and reports how many.
+- **Rationale:** Rule 5 and D-017; types disappear at JSON boundaries, so runtime checks are required.
+
+## D-060 Local days come from `Intl` and bisection; sources stay `TESLA | DEMO` (TASK-08)
+- **Status:** Proposed
+- **Decision:** `localDayBounds` finds when a local day starts and ends by bisecting minutes against the platform's IANA data, so no fixed offsets appear anywhere and a DST day is 23 or 25 hours (Europe/Dublin: 2026-03-29 and 2026-10-25 are tested). The data sources remain the shared `TESLA` and `DEMO`; no `MOCK` source was added (the task text mentions "MOCK", the shared contract does not have it, and the demo provider is the mock).
+- **Rationale:** Rule 6; changing the shared enum would touch the database CHECK and generated types for no gain.

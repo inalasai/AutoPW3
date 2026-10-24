@@ -80,7 +80,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-07 Authentication and permission-aware UI - Supabase Auth adapter, dev-only mock adapter, route guards, role-aware nav, Playwright smoke; real Supabase project `AWAITING_CREDENTIALS`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-07.md`
 
 **Phase 3 — Energy domain**
-- [ ] TASK-08 Telemetry model and demo provider
+- [x] TASK-08 Telemetry model and demo provider - `TelemetryProvider` interface, normaliser, data-quality utilities, demo/live guard, seeded demo day/week/month and scenarios; thresholds `UNVERIFIED`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-08.md`
 - [ ] TASK-09 Animated Live View
 - [ ] TASK-10 Tariff engine
 - [ ] TASK-11 Accounting engine
