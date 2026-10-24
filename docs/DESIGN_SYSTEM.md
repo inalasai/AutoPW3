@@ -28,6 +28,9 @@ Defined once in `src/styles/tokens.css` using Tailwind 4 `@theme`, so each token
 ### Effects switch (one place to turn glow off)
 `<html data-effects="on|off">`. When `off`: all glow variables are `none`, glass is opaque (`--glass-alpha: 1`), blur is `0`, the background aurora is `0`, and animation and transition are disabled. The same state is forced by `prefers-reduced-motion: reduce`, and visitors with that preference default to `off`. The user choice is stored in `localStorage` under `autopw3.effects` (a display preference only). `applyEffects(readInitialEffects())` runs in `main.tsx` before first render so there is no flash. Toggle with the header switch, or `useEffects()` in code.
 
+### Canvas drawing and the tokens
+The Live View canvas (TASK-09) cannot use CSS classes, so `readPalette` in `features/live/renderer.ts` reads the colour custom properties (`--color-solar`, `--color-battery`, `--color-grid`, `--color-grid-ink`, `--color-ink`, `--color-ink-muted`, `--color-line`, `--color-panel`, `--color-select`, `--font-sans`) once, with the token values as fallbacks. Change a colour in `tokens.css` and the canvas follows. Effects off or reduced motion stop all particle animation; direction arrows stay. See [`LIVE_VIEW.md`](LIVE_VIEW.md).
+
 ## Components (`src/components/ui`)
 | Component | Notes |
 |---|---|

@@ -371,3 +371,40 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Proposed
 - **Decision:** `localDayBounds` finds when a local day starts and ends by bisecting minutes against the platform's IANA data, so no fixed offsets appear anywhere and a DST day is 23 or 25 hours (Europe/Dublin: 2026-03-29 and 2026-10-25 are tested). The data sources remain the shared `TESLA` and `DEMO`; no `MOCK` source was added (the task text mentions "MOCK", the shared contract does not have it, and the demo provider is the mock).
 - **Rationale:** Rule 6; changing the shared enum would touch the database CHECK and generated types for no gain.
+
+## D-061 The Live View splits into a pure flow model, a drawing-only renderer and a thin React wrapper (TASK-09)
+- **Status:** Proposed
+- **Decision:** `flow-model.ts`, `format.ts`, `layout.ts` and `particles.ts` are pure and tested without a canvas. `renderer.ts` only draws what the model says (it never decides direction, size or animation). `FlowCanvas` owns one `requestAnimationFrame` loop in one effect; phases, timestamps and the canvas size live in that effect's closure, not in React state, so a frame causes no React render. The flow model stays in `apps/web/src/features/live` because the Worker does not need it (the task file allows this).
+- **Alternatives:** the model in `packages/domain` (rejected: nothing else uses it yet; it can move if the Worker ever does); animation state in React state (rejected: a render per frame).
+- **Rationale:** Task text, "keep flow logic out of the renderer"; testability.
+
+## D-062 The Live View never draws an unknown value as zero and animates only live data (TASK-09)
+- **Status:** Proposed
+- **Decision:** A missing, non-finite or impossible (negative solar or load) value makes that spoke `UNKNOWN`: a dash, a dashed grey line, no direction. Only `LIVE` data (fresh and not `SUSPECT`) moves particles. `STALE` and `SUSPECT` data keep their numbers and arrowheads on dotted lines with a warning. With no reading, or freshness `UNAVAILABLE`, nothing is shown as a value or drawn as flowing. Stale beats suspect. Active spokes always have an arrowhead, so direction needs no motion.
+- **Rationale:** Rules 8 and 9 (missing is `null`, never 0; stale and suspect data are labelled); the product promise of honest data.
+
+## D-063 The data source is chosen by `VITE_TELEMETRY_PROVIDER`, and live never falls back to demo (TASK-09)
+- **Status:** Proposed
+- **Decision:** `demo` or `live`. Unset means `demo` in demo mode and `live` otherwise, so a real deployment never shows demo data by default. `live` with demo mode on is a contradiction and the page shows the reason; so is any other value (the reason does not echo the value). `live` currently has no provider (Tesla adapter TASK-15, ingestion TASK-16, Worker routes TASK-14), so the page says "No live data source is connected yet" and shows no numbers. `chooseProvider` in `create-provider.ts` is the only place that maps the setting to a provider; adding the live one changes nothing else.
+- **Alternatives:** falling back to demo data when live is unavailable (rejected: demo data must never stand in for live data); choosing by editing code (rejected by the task).
+- **Rationale:** Rule 5 (demo data never reaches live paths) and the task's "selection through configuration".
+
+## D-064 The visual and timing thresholds are proposals (TASK-09)
+- **Status:** Proposed, `UNVERIFIED`
+- **Decision:** idle below 10 W; visual level `sqrt(magnitude / 6000 W)` clamped to 0..1; speed 24 to 140 px/s; 1 to 12 particles per spoke (hard upper bounds, whatever the input); frame time clamped to 0.1 s; battery Low below 15% (strict, the domain default), Critical below 5%; poll every 10 s; screen-reader announcements at most every 15 s. Each is a named constant or a prop. No real Tesla data has been used to choose them.
+- **Rationale:** Needed to build the page; to be checked with real data (TASK-15, Q-06). Listed in L-077.
+
+## D-065 The battery percentage is rounded down (TASK-09)
+- **Status:** Proposed
+- **Decision:** `formatPercent` floors, so 14.9% reads "14" and is Low, and 99.9% reads "99". The number never reads higher than the real level and always agrees with the state word at the 15% and 5% boundaries.
+- **Alternatives:** rounding to nearest (rejected: it would print "15" next to the word Low).
+
+## D-066 Polling is one request at a time, paused while the tab is hidden, and keeps the last reading on failure (TASK-09)
+- **Status:** Proposed
+- **Decision:** `useLiveReading` schedules the next request only after the last one finishes, makes none while `document.visibilityState` is hidden, refreshes when the tab is shown again (unless one was made within the interval), keeps the last good reading when a refresh fails and shows a fixed sentence per error kind (provider messages are never shown), and ignores a late answer after unmount. The provider object must be stable; a new one restarts polling.
+- **Rationale:** Live Tesla requests will cost money (D-023); a hidden tab should cost nothing; no secrets or provider text in the UI.
+
+## D-067 Accessibility of the Live View (TASK-09)
+- **Status:** Proposed
+- **Decision:** The canvas is `aria-hidden`. Numbers and directions are real text; a `role="status"` polite live region carries a sentence per node, throttled (first reading at once, later changes at most every 15 s). The battery drawing is a `role="meter"` only when there is a level. Meaning is never colour alone: words, hatching, dotted lines, dashed outlines and arrows. `prefers-reduced-motion` and the in-app effects switch both stop particles; the arrows remain.
+- **Rationale:** Task requirements; DESIGN_SYSTEM accessibility rules.

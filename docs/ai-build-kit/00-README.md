@@ -81,7 +81,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 
 **Phase 3 — Energy domain**
 - [x] TASK-08 Telemetry model and demo provider - `TelemetryProvider` interface, normaliser, data-quality utilities, demo/live guard, seeded demo day/week/month and scenarios; thresholds `UNVERIFIED`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-08.md`
-- [ ] TASK-09 Animated Live View
+- [x] TASK-09 Animated Live View - pure flow model, canvas renderer with animation loop and cleanup, battery gauge, status bar, accessible text summary, provider chosen by `VITE_TELEMETRY_PROVIDER`; thresholds `UNVERIFIED`, real devices, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-09.md`
 - [ ] TASK-10 Tariff engine
 - [ ] TASK-11 Accounting engine
 - [ ] TASK-12 Tariff manager UI

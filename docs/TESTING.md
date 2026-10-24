@@ -33,6 +33,7 @@ npm run test:e2e
 - **Time:** use an injected fake clock. Test DST spring-forward and fall-back days and boundary instants.
 - **Money:** golden values verified independently of the code under test.
 - **Determinism:** demo data is seeded; no randomness in tests.
+- **Canvas and animation (web):** jsdom has no canvas. `test-setup.ts` makes `getContext` return `null`; tests that draw install `features/live/fake-canvas.ts`, which records draw calls, and stub `requestAnimationFrame`. Pixels are not tested; check the look in a browser. Hooks that poll are tested with real timers and short intervals (React's async `act` stalls with fake timers) and need a stable provider object.
 - **Security tests are blockers.** A failing RLS, role-escalation, credential or cross-household test stops the merge.
 - **Coverage:** report the real number per package. Do not game it. The tariff and accounting packages are expected to be near-exhaustive.
 
