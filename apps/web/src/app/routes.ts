@@ -92,6 +92,27 @@ export const APP_ROUTES = [
   { id: 'login', path: '/login', title: 'Sign in', access: 'public', task: '07' },
   { id: 'register', path: '/register', title: 'Create account', access: 'public', task: '07' },
   {
+    id: 'forgot-password',
+    path: '/forgot-password',
+    title: 'Reset your password',
+    access: 'public',
+    task: '07',
+  },
+  {
+    id: 'reset-password',
+    path: '/reset-password',
+    title: 'Choose a new password',
+    access: 'public',
+    task: '07',
+  },
+  {
+    id: 'auth-callback',
+    path: '/auth/callback',
+    title: 'Confirming your email',
+    access: 'public',
+    task: '07',
+  },
+  {
     id: 'invite',
     path: '/invite/:token',
     title: 'Accept invitation',

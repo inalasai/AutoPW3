@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
-import { buttonClasses } from '../../components/ui/Button';
 import { Switch } from '../../components/ui/fields';
+import { AccountControls } from '../../features/auth/AccountControls';
 import { useEffects } from '../effects';
 import type { AppRoute } from '../routes';
 import { MobileNav } from './MobileNav';
@@ -48,18 +48,16 @@ export interface HeaderProps {
   demoMode: boolean;
   /** Navigation entries for the mobile menu (the sidebar gets the same list). */
   navItems: ReadonlyArray<AppRoute>;
-  /** True when someone is signed in. Sign-in itself arrives in TASK-07. */
-  signedIn: boolean;
 }
 
-/** Top bar: menu button (narrow screens), demo pill, brand, effects switch, sign-in link. */
-export function Header({ demoMode, navItems, signedIn }: HeaderProps) {
+/** Top bar: menu button (narrow screens), demo pill, brand, effects switch, account controls. */
+export function Header({ demoMode, navItems }: HeaderProps) {
   const { effects, setEffects } = useEffects();
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-space-900">
       <div className="mx-auto flex h-header w-full max-w-[96rem] items-center gap-3 px-4">
         <div className="lg:hidden">
-          <MobileNav items={navItems} signedIn={signedIn} />
+          <MobileNav items={navItems} />
         </div>
         <Brand />
         <div className="ml-auto flex items-center gap-3 sm:gap-4">
@@ -80,11 +78,7 @@ export function Header({ demoMode, navItems, signedIn }: HeaderProps) {
               setEffects(on ? 'on' : 'off');
             }}
           />
-          {signedIn ? null : (
-            <Link to="/login" className={buttonClasses('secondary', 'sm', 'max-sm:hidden')}>
-              Sign in
-            </Link>
-          )}
+          <AccountControls layout="bar" />
         </div>
       </div>
       <div className="flow-line" aria-hidden="true" />

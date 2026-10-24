@@ -94,8 +94,9 @@ describe('demo indicator', () => {
     expect(within(screen.getByRole('banner')).getByTestId('demo-pill')).toHaveTextContent('DEMO');
   });
 
-  it('is absent when demo mode is off', () => {
-    renderApp({ demoMode: false });
+  it('is absent when demo mode is off', async () => {
+    renderApp({ demoMode: false, account: 'READ_ONLY' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Live' })).toBeInTheDocument();
     expect(screen.queryByTestId('demo-banner')).toBeNull();
     expect(screen.queryByTestId('demo-pill')).toBeNull();
     expect(screen.queryByText(/DEMO MODE/)).toBeNull();
@@ -123,29 +124,27 @@ describe('navigation visibility', () => {
     ]);
   });
 
-  it('hides the admin entry from a READ_ONLY or READ_WRITE user when demo mode is off', () => {
-    for (const role of ['READ_ONLY', 'READ_WRITE'] as const) {
-      const { unmount } = renderApp({ demoMode: false, role });
+  it('hides the admin entry from a READ_ONLY or READ_WRITE user when demo mode is off', async () => {
+    for (const account of ['READ_ONLY', 'READ_WRITE'] as const) {
+      const { unmount } = renderApp({ demoMode: false, account });
+      await screen.findByRole('link', { name: 'Controls' });
       expect(labels()).not.toContain('Admin');
-      expect(labels()).toContain('Controls');
       unmount();
     }
   });
 
-  it('shows the admin entry to an ADMIN', () => {
-    renderApp({ demoMode: false, role: 'ADMIN' });
+  it('shows the admin entry to an ADMIN', async () => {
+    renderApp({ demoMode: false, account: 'ADMIN' });
+    await screen.findByRole('link', { name: 'Admin' });
     expect(labels()).toContain('Admin');
   });
 
-  it('shows nothing private to a visitor with no role when demo mode is off', () => {
-    renderApp({ demoMode: false, role: null });
+  it('shows no navigation to a person with no household', async () => {
+    renderApp({ demoMode: false, account: 'NO_HOUSEHOLD' });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Waiting for an invitation' }),
+    ).toBeInTheDocument();
     expect(labels()).toEqual([]);
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
-  });
-
-  it('hiding is a courtesy only: a route still renders if visited directly', () => {
-    renderApp({ path: '/admin', demoMode: false, role: 'READ_ONLY' });
-    expect(screen.getByRole('heading', { level: 1, name: 'Admin' })).toBeInTheDocument();
   });
 
   it('visibleNavRoutes follows the role order', () => {
@@ -168,8 +167,8 @@ describe('mobile navigation', () => {
     await user.click(menuButton);
     const dialog = screen.getByRole('dialog', { name: 'Menu' });
     expect(menuButton).toHaveAttribute('aria-expanded', 'true');
-    // Seven pages plus the sign-in link, which the narrow header leaves out.
-    expect(within(dialog).getAllByRole('link')).toHaveLength(8);
+    // Seven pages. Demo mode has no sign-in, so there is no sign-in link.
+    expect(within(dialog).getAllByRole('link')).toHaveLength(7);
     expect(within(dialog).getByRole('button', { name: 'Close menu' })).toHaveFocus();
 
     await user.click(within(dialog).getByRole('button', { name: 'Close menu' }));
@@ -277,7 +276,12 @@ describe('accessibility (axe, whole page)', () => {
   }
 
   it('the not-found page has no violations', async () => {
-    const { container } = renderApp({ path: '/nothing-here', demoMode: false });
+    const { container } = renderApp({
+      path: '/nothing-here',
+      demoMode: false,
+      account: 'READ_ONLY',
+    });
+    await screen.findByRole('heading', { level: 1, name: 'Page not found' });
     await expectNoAxeViolations(container, { landmarks: true });
   });
 

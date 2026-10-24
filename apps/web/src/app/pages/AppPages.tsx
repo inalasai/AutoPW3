@@ -1,8 +1,7 @@
 import { Link } from 'react-router';
 import { useState } from 'react';
-import type { ReactNode } from 'react';
 import { COMMAND_CAPABILITIES } from '@autopw3/shared';
-import { Button, buttonClasses } from '../../components/ui/Button';
+import { buttonClasses } from '../../components/ui/Button';
 import {
   ConnectionIndicator,
   DataTable,
@@ -11,9 +10,10 @@ import {
   TelemetryValue,
 } from '../../components/ui/display';
 import { EmptyState, ErrorBanner } from '../../components/ui/feedback';
-import { TextField } from '../../components/ui/fields';
 import { BoltIcon, ChartIcon, PulseIcon } from '../../components/ui/icons';
 import { SegmentedControl, Tabs } from '../../components/ui/Tabs';
+import { useToast } from '../../components/ui/toast';
+import { ReadOnlyNotice, WriteButton } from '../../features/auth/permissions';
 import { Page, PlannedFeature, useDocumentTitle } from './Page';
 
 /*
@@ -108,11 +108,22 @@ export function AnalyticsPage() {
 }
 
 export function TariffsPage() {
+  const toast = useToast();
   return (
     <Page
       title="Tariffs"
       description="Versioned import and export tariffs with effective dates, time-of-use slots and tax."
+      actions={
+        <WriteButton
+          onClick={() => {
+            toast.push({ title: 'Tariff editing is built in TASK-12' });
+          }}
+        >
+          New tariff
+        </WriteButton>
+      }
     >
+      <ReadOnlyNotice what="change tariffs" />
       <GlassCard title="Your tariffs">
         <DataTable
           caption="Tariffs"
@@ -139,6 +150,7 @@ export function ControlsPage() {
       description="Supported Powerwall controls for this site. Every command needs confirmation, and a successful request is not proof the hardware changed."
       status={<ConnectionIndicator state="DISCONNECTED" detail="No site connected" />}
     >
+      <ReadOnlyNotice what="send commands" />
       <ErrorBanner
         tone="info"
         title="Controls are off"
@@ -172,11 +184,22 @@ export function ControlsPage() {
 }
 
 export function AutomationPage() {
+  const toast = useToast();
   return (
     <Page
       title="Automation"
       description="Rules that act on conditions such as time of day, battery level and import rate."
+      actions={
+        <WriteButton
+          onClick={() => {
+            toast.push({ title: 'Rule editing is built in TASK-18' });
+          }}
+        >
+          New rule
+        </WriteButton>
+      }
     >
+      <ReadOnlyNotice what="change rules" />
       <ErrorBanner
         tone="info"
         title="Automation starts switched off"
@@ -194,6 +217,7 @@ export function AutomationPage() {
 export function SettingsPage() {
   return (
     <Page title="Settings" description="Your profile, the Tesla connection, budget and data.">
+      <ReadOnlyNotice what="change household settings" />
       <PlannedFeature title="Profile" task="19" description="Display name and locale." />
       <PlannedFeature
         title="Tesla connection"
@@ -231,110 +255,6 @@ export function AdminPage() {
         />
       </GlassCard>
     </Page>
-  );
-}
-
-function AuthCard({
-  title,
-  description,
-  task,
-  children,
-}: {
-  title: string;
-  description: string;
-  task: string;
-  children: ReactNode;
-}) {
-  useDocumentTitle(title);
-  return (
-    <GlassCard>
-      <h1 id="page-title" tabIndex={-1} className="text-2xl font-semibold tracking-tight">
-        {title}
-      </h1>
-      <p className="mb-4 mt-1 text-sm text-ink-muted">{description}</p>
-      <div className="mb-4">
-        <ErrorBanner
-          tone="info"
-          title={`Sign-in is built in TASK-${task}`}
-          message="This form does nothing yet."
-        />
-      </div>
-      {children}
-    </GlassCard>
-  );
-}
-
-export function LoginPage() {
-  return (
-    <AuthCard
-      title="Sign in"
-      description="Use the email and password of your AutoPW3 account."
-      task="07"
-    >
-      <form
-        className="grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <fieldset disabled className="grid gap-4">
-          <legend className="sr-only">Sign in details</legend>
-          <TextField label="Email" type="email" autoComplete="email" />
-          <TextField label="Password" type="password" autoComplete="current-password" />
-          <Button type="submit">Sign in</Button>
-        </fieldset>
-      </form>
-      <p className="mt-4 text-sm text-ink-muted">
-        New here?{' '}
-        <Link to="/register" className="text-info underline underline-offset-2">
-          Create an account
-        </Link>
-      </p>
-    </AuthCard>
-  );
-}
-
-export function RegisterPage() {
-  return (
-    <AuthCard
-      title="Create account"
-      description="A new account has no access until a household admin invites you."
-      task="07"
-    >
-      <form
-        className="grid gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-        }}
-      >
-        <fieldset disabled className="grid gap-4">
-          <legend className="sr-only">Registration details</legend>
-          <TextField label="Email" type="email" autoComplete="email" />
-          <TextField label="Password" type="password" autoComplete="new-password" />
-          <Button type="submit">Create account</Button>
-        </fieldset>
-      </form>
-      <p className="mt-4 text-sm text-ink-muted">
-        Already have an account?{' '}
-        <Link to="/login" className="text-info underline underline-offset-2">
-          Sign in
-        </Link>
-      </p>
-    </AuthCard>
-  );
-}
-
-export function InvitePage() {
-  return (
-    <AuthCard
-      title="Accept invitation"
-      description="Join a household with the role you were invited to."
-      task="07"
-    >
-      <p className="text-sm text-ink-muted">
-        The invitation token in the address is not shown or stored here.
-      </p>
-    </AuthCard>
   );
 }
 

@@ -1,9 +1,9 @@
 import { useEffect, useId, useState } from 'react';
 import { useLocation } from 'react-router';
-import { Link } from 'react-router';
-import { IconButton, buttonClasses } from '../../components/ui/Button';
+import { IconButton } from '../../components/ui/Button';
 import { CloseIcon, MenuIcon } from '../../components/ui/icons';
 import { Modal } from '../../components/ui/overlays';
+import { AccountControls } from '../../features/auth/AccountControls';
 import type { AppRoute } from '../routes';
 import { NavList } from './NavList';
 
@@ -12,13 +12,7 @@ import { NavList } from './NavList';
  * Keyboard: Enter or Space opens it, focus moves into the drawer and stays there, Tab cycles, Escape or the
  * close button or choosing a link closes it, and focus returns to the menu button.
  */
-export function MobileNav({
-  items,
-  signedIn,
-}: {
-  items: ReadonlyArray<AppRoute>;
-  signedIn: boolean;
-}) {
+export function MobileNav({ items }: { items: ReadonlyArray<AppRoute> }) {
   const [open, setOpen] = useState(false);
   const titleId = useId();
   const { pathname } = useLocation();
@@ -68,17 +62,12 @@ export function MobileNav({
             setOpen(false);
           }}
         />
-        {signedIn ? null : (
-          <Link
-            to="/login"
-            className={buttonClasses('secondary', 'md', 'mt-4 w-full')}
-            onClick={() => {
-              setOpen(false);
-            }}
-          >
-            Sign in
-          </Link>
-        )}
+        <AccountControls
+          layout="drawer"
+          onNavigate={() => {
+            setOpen(false);
+          }}
+        />
       </Modal>
     </>
   );
