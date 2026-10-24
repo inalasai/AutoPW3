@@ -57,6 +57,7 @@ None. The Worker's `/live`, `/power` and `/energy` routes (TASK-14) will call th
 | Exact command | Executed? | Result | Relevant output |
 |---|---|---|---|
 | `npm run check` (typecheck incl. `e2e/`, lint with architecture rules and Prettier, tests, build, secrets scan), run after the code commit | yes | exit 0 | tests: shared 226 (15 files), domain 226 (11 files), web 321 (14 files), worker 4; lint-rule checks and Prettier pass; web build and `wrangler deploy --dry-run` pass; Secretlint clean. The match between the shared and domain counts is a coincidence |
+| Clean clone of the branch into a temporary folder, `npm ci`, `npm run check` (run on the final code commit, before the handoff-only commit) | yes | `npm ci` exit 0; `npm run check` exit 0 | same counts as above: shared 226, domain 226, web 321, worker 4 |
 | `npm run typecheck -w @autopw3/domain`, `npx vitest run` in `packages/domain`, `npx eslint src` in `packages/domain` | yes | pass | 226 tests in 11 files; no ESLint output |
 | `npm run lint` and `npm run secrets:scan` after the documentation edits | yes | exit 0 | lint-rule checks and Prettier pass; Secretlint clean |
 | `npm run test:e2e` | no | `NOT_EXECUTED` | no browser code changed. Command: `npm run test:e2e` |
