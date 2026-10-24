@@ -16,7 +16,9 @@
   "scripts": {
     "dev": "npm run dev -w @autopw3/web",
     "dev:worker": "npm run dev -w @autopw3/worker",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
+    "test:e2e": "playwright test",
     "lint": "eslint . && npm run lint:rules && prettier --check .",
     "lint:rules": "node scripts/check-lint-rules.mjs",
     "format": "prettier --write .",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
     "@secretlint/secretlint-rule-preset-recommend": "13.0.7",
     "@types/pg": "8.23.1",
     "embedded-postgres": "17.10.0-beta.17",
