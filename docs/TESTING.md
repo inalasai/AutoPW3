@@ -32,7 +32,8 @@ npm run test:e2e
 - **Never run live control commands automatically.** A first real-device test follows `docs/DEVICE_CONTROL_SAFETY.md`.
 - **Time:** use an injected fake clock. Test DST spring-forward and fall-back days and boundary instants.
 - **Money:** golden values verified independently of the code under test.
-- **Determinism:** demo data is seeded; no randomness in tests.
+- **Determinism:** demo data is seeded; no randomness in tests. Property-based tests (`fast-check`, in `packages/domain/src/tariff/properties.test.ts`) pass a fixed `seed`, so every run tries the same cases; change the seed or `numRuns` deliberately to search further.
+- **Coverage tooling:** `npm run test:coverage -w @autopw3/domain` (V8, `@vitest/coverage-v8`) reports `packages/domain/src/tariff`. It is on demand, not in `npm run check`, and has no threshold; report the printed numbers as they are. The text report hides files at 100%, so read `packages/domain/coverage/coverage-summary.json` for all of them.
 - **Canvas and animation (web):** jsdom has no canvas. `test-setup.ts` makes `getContext` return `null`; tests that draw install `features/live/fake-canvas.ts`, which records draw calls, and stub `requestAnimationFrame`. Pixels are not tested; check the look in a browser. Hooks that poll are tested with real timers and short intervals (React's async `act` stalls with fake timers) and need a stable provider object.
 - **Security tests are blockers.** A failing RLS, role-escalation, credential or cross-household test stops the merge.
 - **Coverage:** report the real number per package. Do not game it. The tariff and accounting packages are expected to be near-exhaustive.

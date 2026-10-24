@@ -408,3 +408,76 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Proposed
 - **Decision:** The canvas is `aria-hidden`. Numbers and directions are real text; a `role="status"` polite live region carries a sentence per node, throttled (first reading at once, later changes at most every 15 s). The battery drawing is a `role="meter"` only when there is a level. Meaning is never colour alone: words, hatching, dotted lines, dashed outlines and arrows. `prefers-reduced-motion` and the in-app effects switch both stop particles; the arrows remain.
 - **Rationale:** Task requirements; DESIGN_SYSTEM accessibility rules.
+
+## D-068 The engine returns results, not exceptions, and never a zero for missing coverage (TASK-10)
+- **Status:** Proposed
+- **Decision:** `resolveTariffRate` returns `{ ok: true, ... }` or `{ ok: false, code, message }`; `priceInterval` returns a status union; `chargesForLocalDates` returns days or problems; validators return `TariffProblem[]`. Bad tariff data is a returned problem. A `RangeError` is thrown only for a caller mistake (an inexact instant, an empty or over-long range, negative energy, a number where money is expected, mixed currencies in one interval). No function returns a zero rate or amount to stand in for a missing one.
+- **Alternatives:** throwing for missing coverage (rejected: the accounting engine must count and show unpriced intervals, not abort a day); returning zero (rejected by rule 8).
+- **Rationale:** Rule 8; completeness is a first-class number in ENERGY_ACCOUNTING.
+
+## D-069 A site-specific tariff version beats the household default (TASK-10)
+- **Status:** Proposed
+- **Decision:** For a site, the versions in force are those with that site's id and those with no site id. If any site-specific version is in force on the local date, only site-specific versions compete; otherwise the household defaults do. Two in force in the same group is `AMBIGUOUS_TARIFF`. Without a `siteId` option only household defaults are used.
+- **Rationale:** ENERGY_ACCOUNTING names the site scope but not which wins; the database exclusion constraint is per site scope, so both can exist at once. Needs owner confirmation.
+
+## D-070 Precedence details the architecture left open (TASK-10)
+- **Status:** Proposed
+- **Decision:** (1) Slots of a day type replace the `ALL` slots: if a list has any `WEEKDAY` slot, weekdays use only those, likewise `WEEKEND`. (2) A date override replaces the whole local day with its own slots; nothing is inherited. (3) A season with no slots inherits the all-year slots. (4) Two overrides of equal priority on one date are `AMBIGUOUS_TARIFF` at run time and `OVERRIDE_PRIORITY_TIE` at save time. (5) A dynamic price point is looked up only for a `DYNAMIC` tariff; no price point is `NO_PRICE_POINT`, never carried forward. This was the TASK-10 stop condition (precedence not defined in the architecture), proposed in the plan and recorded here.
+- **Alternatives:** weekday slots layered over `ALL` per minute (rejected: harder to validate and explain); an override inheriting uncovered minutes from the base (rejected: a hidden fallback).
+- **Rationale:** D-013 gives the order but not these cases; each choice makes a gap visible instead of hiding it.
+
+## D-071 A window across midnight is two slots (TASK-10)
+- **Status:** Proposed
+- **Decision:** The engine keeps the TASK-05 slot model (`endMinute > startMinute`). Night as 23:00 to 08:00 is `1380-1440` plus `0-480`. Local midnight is always a split point, and each side is looked up on its own local date, so a midnight crossing needs no special case.
+- **Rationale:** The shared schema already fixed it; changing it would change the database.
+
+## D-072 DST semantics: price by the instant's local time (TASK-10)
+- **Status:** Proposed
+- **Decision:** Every instant is priced by the local date and minute it falls on in the tariff's own IANA zone. A skipped local time does not exist, so a slot edge there yields no boundary that day. A repeated local time occurs twice, each instant is priced by the band it falls in, and a slot edge in the repeated hour is a boundary at both instants. A 23-hour day has 23 hours of pricing, a 25-hour day 25. Calendar data comes from the platform's `Intl` time zone data, checked against hand-derived UTC values for Europe/Dublin and America/New_York.
+- **Alternatives:** applying a repeated slot once, at its first occurrence (ENERGY_ACCOUNTING section 4 wording; rejected for rate bands because it would leave the second pass unpriced or priced twice).
+- **Rationale:** Keeps cost = rate x energy for every real instant; no tz library dependency was added.
+
+## D-073 Splitting uses the schedule the resolver would use (TASK-10)
+- **Status:** Proposed
+- **Decision:** Split points are gathered per local day from the schedule in force that day (override, season or base), plus day starts, the DST change, version and season changes and price point edges. Neighbouring identical results are joined. The tests compare this with a minute-by-minute scan of the resolver.
+- **Rationale:** One source of truth for what applies when; the scan test catches any drift.
+
+## D-074 Pricing statuses and the default for Q-08 (TASK-10)
+- **Status:** Proposed (Q-08 still open for the owner)
+- **Decision:** `PRICED` when one tariff version and one rate hold for the whole interval; `UNPRICEABLE_AT_RESOLUTION` by default when more than one applies (`STRICT`); `ESTIMATE` only with the opt-in `PRORATA_ESTIMATE`; `UNPRICED` for any gap, in both modes. A version change inside an interval counts as mixed even when the rates are equal.
+- **Rationale:** ENERGY_ACCOUNTING section 5 and rule 9 (never fabricate finer data).
+
+## D-075 VAT and levy treatment (TASK-10)
+- **Status:** Proposed
+- **Decision:** `EXCLUSIVE`: VAT = taxable x rate / 100 added on top. `INCLUSIVE`: VAT = amount - amount / (1 + rate / 100) and the total is unchanged. `NONE`: no VAT. Taxable levies are in the VAT base, non-taxable ones are added after it. Levies apply to imports only; a levy on an export tariff is rejected at validation (`LEVY_ON_EXPORT`) and ignored when pricing. Export `PER_KWH` pays kWh x rate; `NONE` pays exactly zero. Whether export credits are taxed is the export tariff's own setting, not assumed (Q-09).
+- **Rationale:** ENERGY_ACCOUNTING section 5; the schema has no export levy.
+
+## D-076 The engine does not round; display rounding is half up to the minor unit (TASK-10)
+- **Status:** Proposed
+- **Decision:** All amounts are exact decimals (28 significant digits, half up) serialised as strings. `roundToMinorUnit` rounds half up to the currency's minor unit for display, once per line (ENERGY_ACCOUNTING section 7). Known currencies: EUR, GBP, USD, CHF, CAD, AUD, NZD, SEK, NOK, DKK, PLN and CZK have 2 digits, JPY 0; an unlisted currency throws instead of guessing.
+- **Rationale:** Rule 6 (money is decimal-safe); rounding early would lose cents across thousands of intervals.
+
+## D-077 Standing charge is per local date (TASK-10)
+- **Status:** Proposed
+- **Decision:** `chargesForLocalDates(from, to)` charges each local date in `[from, to)` once, using the version in force on that date, whatever its length in hours (a 23-hour and a 25-hour day cost one each). Per-day levies and VAT follow the same rules as energy. A date with no version is a problem entry, never zero. Pro-rating a partial day is left to TASK-11.
+- **Rationale:** Suppliers charge per calendar day; ENERGY_ACCOUNTING section 5.
+
+## D-078 Negative prices work in the engine, not in storage (TASK-10)
+- **Status:** Proposed
+- **Decision:** The engine accepts negative rates and prices (a negative dynamic price gives a negative cost). The shared schemas and database constraints still reject negative rates; they are unchanged and the gap is recorded in L-086. Owner choice at the TASK-10 plan: engine only.
+- **Alternatives:** widening the schema and a migration now (rejected for this task: it touches TASK-03 to 05 work).
+
+## D-079 Range limits (TASK-10)
+- **Status:** Proposed, `UNVERIFIED`
+- **Decision:** `MAX_SPLIT_DAYS` is 400 and `MAX_CHARGE_DAYS` is 1100; a longer range throws `RangeError`.
+- **Rationale:** Bounds work per call; the accounting engine splits long ranges itself. Listed in L-090.
+
+## D-080 Four tariff problem codes added to the shared enum; fixtures live in the domain package (TASK-10)
+- **Status:** Proposed
+- **Decision:** `TIMEZONE_UNKNOWN`, `TIMEZONE_MISMATCH`, `PRICE_POINT_OVERLAP` and `LEVY_ON_EXPORT` were appended to `TARIFF_PROBLEM_CODES` in `packages/shared` (the enum's own comment allows additive codes; nothing stores them). The tariff fixtures are in `packages/domain/src/tariff/fixtures` and exported, so the accounting engine (TASK-11) and web tests can use them; they are not mixed into the demo telemetry fixtures.
+- **Rationale:** The validator needs these reasons; the task's write path is the tariff folder.
+
+## D-081 Two development dependencies (TASK-10)
+- **Status:** Proposed, approved by the owner at the TASK-10 plan
+- **Decision:** `@vitest/coverage-v8` 5.0.5 (same version as Vitest) for the honest coverage report, and `fast-check` 4.10.2 for the property-based tests. Both are devDependencies of `@autopw3/domain` only; neither ships in a bundle.
+- **Rationale:** Required by the task (coverage report, property-based tests).
