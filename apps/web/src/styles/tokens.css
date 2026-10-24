@@ -1,0 +1,80 @@
+/*
+  AutoPW3 design tokens (TASK-06). Source of truth for colour, type, radii and glow.
+  Colours come from the visual identity in docs/ai-build-kit/02-PROJECT-CONTEXT.md.
+  Contrast of every text and control pair is checked by src/styles/contrast.test.ts: change a value here
+  and that test tells you if a pair fell below WCAG AA.
+  No external fonts: public/_headers sets `default-src 'self'`, so only system stacks are used.
+*/
+
+@theme {
+  /* Surfaces */
+  --color-space-950: #020617;
+  --color-space-900: #090d16;
+  --color-panel: #0f172a;
+  --color-line: #1e293b;
+  --color-field-border: #64748b;
+
+  /* Text */
+  --color-ink: #e2e8f0;
+  --color-ink-muted: #94a3b8;
+
+  /* Energy identity: solar, battery, grid; selection and focus */
+  --color-solar: #f59e0b;
+  --color-battery: #10b981;
+  --color-grid: #6366f1;
+  --color-grid-ink: #a5b4fc;
+  --color-select: #06b6d4;
+
+  /* Status: text tones, plus a solid for destructive buttons */
+  --color-danger: #f87171;
+  --color-danger-solid: #b91c1c;
+  --color-warning: #fbbf24;
+  --color-success: #34d399;
+  --color-info: #67e8f9;
+
+  /* Typography: system stacks only */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:
+    ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* Radii */
+  --radius-control: 0.5rem;
+  --radius-card: 0.875rem;
+  --radius-pill: 999px;
+
+  /* Layout */
+  --spacing-header: 3.5rem;
+  --spacing-sidebar: 15rem;
+}
+
+/*
+  Effects. ONE switch: <html data-effects="off"> sets every glow level to none, makes glass panels opaque,
+  removes blur and background light, and stops animation. The UI is designed to be fully readable that way:
+  status is never carried by glow alone. The same state is forced by prefers-reduced-motion (see base.css).
+*/
+:root {
+  color-scheme: dark;
+
+  --glow-solar: 0 0 28px -6px rgb(245 158 11 / 0.4);
+  --glow-battery: 0 0 28px -6px rgb(16 185 129 / 0.4);
+  --glow-grid: 0 0 28px -6px rgb(99 102 241 / 0.45);
+  --glow-select: 0 0 24px -6px rgb(6 182 212 / 0.45);
+
+  --glass-alpha: 0.6;
+  --glass-blur: 12px;
+  --aurora-opacity: 1;
+  --motion-scale: 1;
+}
+
+:root[data-effects='off'] {
+  --glow-solar: none;
+  --glow-battery: none;
+  --glow-grid: none;
+  --glow-select: none;
+
+  --glass-alpha: 1;
+  --glass-blur: 0px;
+  --aurora-opacity: 0;
+  --motion-scale: 0;
+}
