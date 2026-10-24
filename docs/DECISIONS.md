@@ -258,3 +258,36 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Command parameter shapes per kind (our normalised model; the Tesla payload mapping stays `UNVERIFIED`), rule definition version 1 (conditions `TIME_WINDOW`, `BATTERY_SOC`, `IMPORT_RATE` combined with AND, actions are command requests, 1 to 10 conditions and 1 to 5 actions), the export and delete request and response bodies, tariff problem codes, and the mapping from database error messages to API error codes (`DB_ERROR_TO_API_ERROR`).
 - **Alternatives:** leave them undefined (rejected: tasks 14 to 19 need a shape to build against and a test to change when the shape changes).
 - **Rationale:** Smallest shape that satisfies the contract; each is marked in the code and listed in `docs/KNOWN_LIMITATIONS.md`.
+
+## D-040 Design tokens in CSS and one effects switch (TASK-06)
+- **Status:** Approved
+- **Decision:** Colours, type, radii, layout sizes and four glow levels are Tailwind 4 `@theme` tokens in `apps/web/src/styles/tokens.css`. A single attribute, `<html data-effects="on|off">`, turns off glow, glass transparency, blur, background light and animation. `prefers-reduced-motion` forces it off and sets the default to off. The choice is stored in `localStorage` (`autopw3.effects`). System font stacks only.
+- **Alternatives:** per-component glow props (rejected: no single switch); web fonts (rejected: CSP `default-src 'self'`, and no external assets).
+- **Rationale:** Task requirement of one glow-off switch; readable with effects off; accessibility.
+
+## D-041 react-router and route inventory as data (TASK-06)
+- **Status:** Approved (dependency approved by the owner)
+- **Decision:** `react-router` 8.5.0 (MIT) with `BrowserRouter`. Routes are data in `apps/web/src/app/routes.ts` (path, title, nav entry, access hint, owning task). `AppFrame` holds providers and routes without a router so tests use `MemoryRouter`; `App` adds `BrowserRouter`. `/invite/:token` is included as a public placeholder because the PRD describes invitations, although the task's route list omits it.
+- **Alternatives:** hand-rolled routing (rejected: focus, links, history); a route table in the shared package (rejected: it holds page concerns, not API contract).
+- **Rationale:** Smallest accepted router; later tasks replace page components, not the table.
+
+## D-042 Navigation visibility is a hint (TASK-06)
+- **Status:** Approved (owner chose this behaviour)
+- **Decision:** In demo mode every nav entry shows. With demo off only public entries show until a `role` prop is supplied by the session (TASK-07), then entries up to that role via `roleAtLeast`. A hidden route still renders its own state; the Worker and database authorise.
+- **Rationale:** AGENTS.md: backend and database are authoritative, never the browser.
+
+## D-043 Accessibility approach and axe-core as a dev dependency (TASK-06)
+- **Status:** Approved (dependencies approved by the owner)
+- **Decision:** Tests use `axe-core` 4.14.0 (MPL-2.0) and `@testing-library/user-event` 14.6.8 (MIT) as dev dependencies only; neither ships in the bundle. jsdom cannot evaluate colour, so axe tests disable `color-contrast` and `src/styles/contrast.test.ts` computes WCAG ratios from `tokens.css` instead; contrast was also checked with axe in a real browser. Focus moves to `h1#page-title` on navigation; modals trap focus and set `inert` on the app root.
+- **Alternatives:** `jest-axe` (rejected: another dependency for a thin wrapper).
+- **Rationale:** Keeps contrast regressions visible in `npm test` without a browser.
+
+## D-044 Demo indicator design (TASK-06)
+- **Status:** Approved
+- **Decision:** The demo banner (`role="status"`) sits in a named `region` above the sticky header and scrolls away; a `DEMO` pill in the sticky header stays visible. Components never default missing telemetry to zero: they render a dash with screen-reader text "No data".
+- **Rationale:** AGENTS.md: demo data is always labelled; PRD honest-data rule. The banner was moved out of the sticky header because it clipped the sidebar at small heights.
+
+## D-045 `sideEffects: false` for `@autopw3/shared` (TASK-06)
+- **Status:** Approved
+- **Decision:** `packages/shared/package.json` declares `"sideEffects": false` so the web build tree-shakes unused schemas (web bundle 433 kB to 290 kB, 91 kB gzip).
+- **Rationale:** The package holds pure schemas and helpers; the larger bundle came from importing one function.

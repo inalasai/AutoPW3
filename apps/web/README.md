@@ -1,6 +1,6 @@
 # apps/web — React front end
 
-**Status:** skeleton only (TASK-02): Vite + React + Tailwind placeholder shell with a demo banner, `lib/config.ts`, security headers in `public/_headers` and a placeholder Tesla key file under `public/.well-known/`. Routing, layout and design system arrive in TASK-06. Run with `npm run dev` (see `docs/DEVELOPMENT_SETUP.md`).
+**Status:** design system and application shell done (TASK-06): tokens and effects switch, UI components, responsive shell, routing with placeholder pages, demo banner. Pages hold no data, authentication or charts yet; features arrive in TASK-07 onward. Component catalogue at `/dev/components` in `npm run dev` only. See [`../../docs/DESIGN_SYSTEM.md`](../../docs/DESIGN_SYSTEM.md). Run with `npm run dev` (see `docs/DEVELOPMENT_SETUP.md`).
 
 ## Purpose
 The browser application: routing, layout, feature screens and the design system. It displays data and sends requests; it never decides authorisation.
@@ -8,8 +8,9 @@ The browser application: routing, layout, feature screens and the design system.
 ## Where code goes
 | Path | Content | Task |
 |---|---|---|
-| `src/app/` | Router, providers, layout, route config | 06 |
+| `src/app/` | `App` (adds `BrowserRouter`), `AppFrame` (providers and routes, used by tests), `routes.ts` (route inventory as data), `effects.tsx`, `shell/` (header, sidebar, mobile menu), `pages/` (placeholders), `dev/` (dev-only catalogue) | 06 |
 | `src/components/ui/` | Design system components. No energy logic | 06 |
+| `src/test/` | `renderApp` and axe helpers for component tests | 06 |
 | `src/features/auth/` | Login, register, session, route guards | 07 |
 | `src/features/live/` | Live View: flow model, canvas renderer, battery widget | 09 |
 | `src/features/tariffs/` | Tariff manager | 12 |
@@ -24,7 +25,9 @@ The browser application: routing, layout, feature screens and the design system.
 ## Rules
 - Imports only `@autopw3/shared` and `@autopw3/domain`. Never imports `apps/worker`.
 - No service-role keys, no Tesla code, no secrets. `VITE_` variables are public.
-- Roles shown in the UI come from the server, never from local storage.
+- Roles shown in the UI come from the server, never from local storage. Nav hiding is a hint only (`visibleNavRoutes`).
+- Components in `components/ui` receive formatted strings; no energy calculations, Tesla code or fetching there.
+- Effects (glow, blur, animation) are controlled only by `<html data-effects>`; never hard-code a glow.
 - Demo data is always labelled and shows a visible demo indicator.
 
 ## Configuration

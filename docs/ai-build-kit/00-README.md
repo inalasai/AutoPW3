@@ -76,7 +76,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-05 Shared types and validation - Zod schemas, route table, drift tests, generated DB types (own generator); real `supabase gen types`, CI and PR `NOT_EXECUTED`, see `docs/handoffs/TASK-05.md`
 
 **Phase 2 — Frontend foundation**
-- [ ] TASK-06 Design system and app shell
+- [x] TASK-06 Design system and app shell - tokens with one effects switch, UI components, responsive shell, placeholder routes, `/dev/components`; PR and GitHub CI `NOT_EXECUTED`, see `docs/handoffs/TASK-06.md`
 - [ ] TASK-07 Authentication and permission-aware UI
 
 **Phase 3 — Energy domain**
