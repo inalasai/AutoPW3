@@ -120,6 +120,11 @@ export const TARIFF_PROBLEM_CODES = [
   'OVERRIDE_PRIORITY_TIE',
   'EFFECTIVE_DATE_OVERLAP',
   'CURRENCY_MISMATCH',
+  // Added by TASK-10 (additive, as the comment above allows).
+  'TIMEZONE_UNKNOWN',
+  'TIMEZONE_MISMATCH',
+  'PRICE_POINT_OVERLAP',
+  'LEVY_ON_EXPORT',
 ] as const;
 export type TariffProblemCode = (typeof TARIFF_PROBLEM_CODES)[number];
 
