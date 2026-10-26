@@ -31,7 +31,7 @@ Always apply changes in this strict order:
    - **Project URL:** `https://<project-ref>.supabase.co`
    - **Anon Public Key:** `eyJhbGciOi...` (Safe for public client)
    - **Service Role Secret Key:** `eyJhbGciOi...` (Server-only Worker secret, bypasses RLS)
-   - **Database Connection String:** `postgresql://postgres:<db-password>@db.<project-ref>.supabase.co:5432/postgres`
+   - **Database Connection URI:** Available under *Project Settings -> Database -> Connection URI* in Supabase Dashboard.
 
 ### 2.2 Applying Migrations
 Apply all 12 versioned migrations in `supabase/migrations/` in numerical sequence:

@@ -15,13 +15,13 @@ AutoPW3 manages high-value operational and analytical data: household configurat
 ### 1.2 Independent Offsite Backups
 For subscription-free or standard instances, an offsite logical backup should be scheduled weekly via `pg_dump`:
 ```bash
-# Dump clean schema and data excluding ephemeral metrics
+# Dump clean schema and data excluding ephemeral metrics (set SUPABASE_DB_URL in shell)
 pg_dump \
   --format=custom \
   --no-owner \
   --no-privileges \
   --exclude-table=public.job_locks \
-  --dbname="postgresql://postgres:<db-password>@db.<project-ref>.supabase.co:5432/postgres" \
+  --dbname="$SUPABASE_DB_URL" \
   --file="autopw3_backup_$(date +%Y%m%d_%H%M%S).dump"
 ```
 Store the dump file in an encrypted, offsite bucket (e.g. AWS S3 Glacier or Cloudflare R2) with an object lock / immutability policy.
@@ -33,13 +33,13 @@ Store the dump file in an encrypted, offsite bucket (e.g. AWS S3 Glacier or Clou
 To restore from a logical backup file into a recovery or staging database:
 
 ```bash
-# 1. Connect to destination recovery database
+# 1. Connect to destination recovery database (set RECOVERY_DB_URL in shell)
 pg_restore \
   --clean \
   --if-exists \
   --no-owner \
   --no-privileges \
-  --dbname="postgresql://postgres:<recovery-db-password>@db.<recovery-project-ref>.supabase.co:5432/postgres" \
+  --dbname="$RECOVERY_DB_URL" \
   "autopw3_backup_<timestamp>.dump"
 
 # 2. Run schema verification script
