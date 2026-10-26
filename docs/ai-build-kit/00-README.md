@@ -98,7 +98,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-19 Administration and audit - member directory & role mutations, cryptographic invitations lifecycle (hash stored, zero SMTP dependency), immutable audit logging with redaction, settings management (spend cap, stale threshold, retention days), GDPR compliance operations (Article 20 JSON exports for household/account, Article 17 Right to Erasure with last-admin guardrails and typed name confirmation), AdminPanel cockpit UI, Playwright smoke tests; PR and CI NOT_EXECUTED, see docs/handoffs/TASK-19.md
 
 **Phase 6 — Release**
-- [ ] TASK-20 Security audit and end-to-end tests
+- [x] TASK-20 Security audit and end-to-end tests - independent security audit (0 open critical/high findings), Endpoint × Role matrix, universal RLS and pgTAP security verification (336 assertions passed), Secretlint (0 secrets), CSV formula injection defense, all 38 Playwright E2E tests passed, SECURITY_AUDIT.md, TEST_REPORT.md, VERIFICATION_REGISTER.md; PR and CI NOT_EXECUTED, see docs/handoffs/TASK-20.md
 - [ ] TASK-21 Deployment and release
 
 ## Tasks that must stay separate
