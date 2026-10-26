@@ -1,6 +1,6 @@
 # packages/domain - pure energy logic
 
-**Status:** TASK-08 and TASK-10 complete: telemetry domain (provider interface, normaliser, data-quality utilities, demo/live guard), the demo telemetry provider and deterministic synthetic fixtures, and the tariff engine (rate resolution, DST-correct splitting and pricing, charges, validators, example fixtures). The accounting engine arrives in TASK-11. Package name: `@autopw3/domain`; consumed as TypeScript source; `sideEffects: false`.
+**Status:** TASK-08, TASK-10, and TASK-11 complete: telemetry domain (provider interface, normaliser, data-quality utilities, demo/live guard), the demo telemetry provider and deterministic synthetic fixtures, the tariff engine (rate resolution, DST-correct splitting and pricing, charges, validators, example fixtures), and the energy & financial accounting engine (interval energy, independent import/export costs, standing charges, VAT, efficiency metrics, counterfactual savings). Package name: `@autopw3/domain`; consumed as TypeScript source; `sideEffects: false`.
 
 ## Purpose
 Deterministic energy logic shared by the web app, Worker rollups and automation: telemetry normalisation and quality checks, the tariff engine and the accounting engine.
@@ -12,7 +12,7 @@ Deterministic energy logic shared by the web app, Worker rollups and automation:
 | `src/telemetry/` | `TelemetryProvider` interface, normalisers, timestamps and local days, series utilities (sort, dedupe, gaps), freshness, validation, demo/live guard, flow descriptions, demo provider | 08 | done |
 | `src/fixtures/` | Seeded demo site model, day/week/month datasets, named scenarios | 08 | done (tariff fixtures and golden values come in 10, 11) |
 | `src/tariff/` | Tariff validation, rate resolution, interval splitting and pricing, per-day charges, DST calendar, decimal money helpers, `fixtures/` (labelled `ILLUSTRATIVE EXAMPLE` tariffs and half-hourly prices). Public API in `index.ts`, re-exported from the package | 10 | done |
-| `src/accounting/` | Interval energy, import/export cost, savings, completeness | 11 | not started |
+| `src/accounting/` | Interval energy, import/export cost, savings, completeness | 11 | done |
 
 Full description of the telemetry model: `docs/TELEMETRY_MODEL.md`. Full description of the tariff engine (precedence, DST, money, statuses, fixtures): `docs/TARIFF_ENGINE.md`.
 

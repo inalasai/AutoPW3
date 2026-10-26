@@ -365,7 +365,7 @@ describe('unauthorised direct access', () => {
       expect(await heading('Not authorised')).toBeInTheDocument();
       expect(screen.queryByText('Members')).toBeNull();
       expect(screen.queryByRole('heading', { level: 1, name: 'Admin' })).toBeNull();
-      expect(document.title).toBe('Not authorised - AutoPW3');
+      await waitFor(() => expect(document.title).toBe('Not authorised - AutoPW3'));
       expect(screen.getByRole('link', { name: 'Go to Live' })).toHaveAttribute('href', '/live');
     },
   );
