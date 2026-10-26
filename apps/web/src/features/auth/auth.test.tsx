@@ -339,7 +339,7 @@ describe('role-aware navigation and READ_ONLY presentation', () => {
     const button = screen.getByRole('button', { name: 'New tariff' });
     expect(button).toBeEnabled();
     await user.click(button);
-    expect(await screen.findByText('Tariff editing is built in TASK-12')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: 'New Tariff' })).toBeInTheDocument();
   });
 
   it('ADMIN: sees Admin in the navigation and can open it', async () => {

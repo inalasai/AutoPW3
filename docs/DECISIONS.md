@@ -506,3 +506,24 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Proposed
 - **Decision:** Implements self-consumption %, self-sufficiency %, and battery round-trip losses ($\max(0, \text{charged} - \text{discharged})$). Counterfactual savings ("no solar, no battery") models 100% of home consumption imported at active tariff rates plus standing charges, always labelled `ESTIMATE`. Documented in `docs/FINANCIAL_MODEL.md`.
 - **Rationale:** Task 11 requirements; ENERGY_ACCOUNTING §6.
+
+## D-087 Window-to-slot decomposition for midnight crossing (TASK-12)
+- **Status:** Proposed
+- **Decision:** The UI presents human-friendly time windows (e.g., 23:00 to 08:00) while the underlying database schema and tariff engine enforce `0 <= startMinute < endMinute <= 1440`. Windows crossing midnight (`startMinute >= endMinute`) are automatically decomposed into two canonical slots: `[startMinute, 1440)` and `[0, endMinute)` with identical rate, label, and day type. When loaded into the editor, matching slots are rejoined into a single window.
+- **Rationale:** Aligns user experience with the strict schema constraint established in TASK-05 and D-071.
+
+## D-088 Effective-dated versioning rather than in-place mutation (TASK-12)
+- **Status:** Proposed
+- **Decision:** Editing an existing tariff generates a new version (`version: n + 1`) under the same `tariffKey`. The previous version's `effectiveTo` is updated to the new version's `effectiveFrom`, preserving historical continuous pricing across telemetry records. Setting `effectiveTo` explicitly archives/ends a tariff without deleting audit history.
+- **Rationale:** AGENTS.md and D-034: tariff version immutability; historical calculations must not be rewritten.
+
+## D-089 Visual 24-hour schedule preview with DST clock change support (TASK-12)
+- **Status:** Proposed
+- **Decision:** The schedule preview is directly driven by the domain tariff engine (`splitIntervalAtBoundaries`, `resolveTariffRate`, `localDay`). Normal days render 24 hours (1,440 mins); spring-forward DST days render 23 hours (1,380 mins); fall-back DST days render 25 hours (1,500 mins) with both passes through repeated local times priced by active slots. An accessible companion segment breakdown table is rendered alongside the visual bar.
+- **Rationale:** WCAG accessibility rules; honest representation of DST transitions per D-072.
+
+## D-090 Tariff repository abstraction and role enforcement (TASK-12)
+- **Status:** Proposed
+- **Decision:** Persistence uses an explicit `TariffRepository` interface. In demo mode and offline tests, `InMemoryTariffRepository` is seeded with `TARIFF_EXAMPLES`. The repository enforces roles: if `currentRole === 'READ_ONLY'`, `saveTariff` and `endTariff` throw `Error('READ_ONLY role cannot persist tariffs')`. In the UI, controls are disabled for `READ_ONLY` sessions with clear explanations.
+- **Rationale:** TASK-12 acceptance criterion: READ_ONLY cannot persist in UI and data layer; Worker route comes in TASK-14.
+

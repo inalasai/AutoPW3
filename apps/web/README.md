@@ -1,6 +1,6 @@
 # apps/web — React front end
 
-**Status:** design system and application shell done (TASK-06); authentication and permission-aware UI done (TASK-07): Supabase Auth adapter, dev-only mock adapter, route guards, role-aware nav, waiting-for-invitation and unauthorised pages. The Live page (TASK-09) shows animated energy flow from the demo provider; the other pages hold no data or charts yet. Sign-in setup: [`../../docs/AUTHENTICATION_SETUP.md`](../../docs/AUTHENTICATION_SETUP.md). Component catalogue at `/dev/components` in `npm run dev` only. See [`../../docs/DESIGN_SYSTEM.md`](../../docs/DESIGN_SYSTEM.md). Run with `npm run dev` (see `docs/DEVELOPMENT_SETUP.md`).
+**Status:** design system and application shell done (TASK-06); authentication and permission-aware UI done (TASK-07): Supabase Auth adapter, dev-only mock adapter, route guards, role-aware nav, waiting-for-invitation and unauthorised pages. The Live page (TASK-09) shows animated energy flow from the demo provider. Tariff Manager (TASK-12) done: interactive profile editor, time-of-use schedule preview, engine validation, template loader, and role gating. Sign-in setup: [`../../docs/AUTHENTICATION_SETUP.md`](../../docs/AUTHENTICATION_SETUP.md). Component catalogue at `/dev/components` in `npm run dev` only. See [`../../docs/DESIGN_SYSTEM.md`](../../docs/DESIGN_SYSTEM.md). Run with `npm run dev` (see `docs/DEVELOPMENT_SETUP.md`).
 
 ## Purpose
 The browser application: routing, layout, feature screens and the design system. It displays data and sends requests; it never decides authorisation.

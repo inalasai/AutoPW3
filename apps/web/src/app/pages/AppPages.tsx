@@ -8,6 +8,7 @@ import { BoltIcon, ChartIcon } from '../../components/ui/icons';
 import { SegmentedControl, Tabs } from '../../components/ui/Tabs';
 import { useToast } from '../../components/ui/toast';
 import { ReadOnlyNotice, WriteButton } from '../../features/auth/permissions';
+import { TariffManager } from '../../features/tariffs';
 import { Page, PlannedFeature, useDocumentTitle } from './Page';
 
 /*
@@ -72,39 +73,7 @@ export function AnalyticsPage() {
 }
 
 export function TariffsPage() {
-  const toast = useToast();
-  return (
-    <Page
-      title="Tariffs"
-      description="Versioned import and export tariffs with effective dates, time-of-use slots and tax."
-      actions={
-        <WriteButton
-          onClick={() => {
-            toast.push({ title: 'Tariff editing is built in TASK-12' });
-          }}
-        >
-          New tariff
-        </WriteButton>
-      }
-    >
-      <ReadOnlyNotice what="change tariffs" />
-      <GlassCard title="Your tariffs">
-        <DataTable
-          caption="Tariffs"
-          captionHidden
-          rows={[]}
-          getRowKey={(row: { id: string }) => row.id}
-          emptyMessage="No tariffs yet. The tariff manager is built in TASK-12."
-          columns={[
-            { key: 'name', header: 'Name', render: () => null },
-            { key: 'direction', header: 'Direction', render: () => null },
-            { key: 'from', header: 'Effective from', render: () => null },
-            { key: 'rate', header: 'Rate', numeric: true, render: () => null },
-          ]}
-        />
-      </GlassCard>
-    </Page>
-  );
+  return <TariffManager />;
 }
 
 export function ControlsPage() {

@@ -100,3 +100,5 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-094 | Accounting | Battery round-trip efficiency in v1 is estimated as total discharge divided by total charge over the accounted window; real battery degradation, temperature variance, and standby internal loss are not modeled until live telemetry calibration is available | UNVERIFIED | TASK-11 |
 | L-095 | Accounting | Tariff optimisation benefit compares actual energy charges against flat volume-weighted average rate; complex dynamic battery dispatch counterfactuals are out of scope for v1 | VERIFIED | TASK-11 |
 | L-096 | Process | TASK-11 was implemented on branch `Sai-AutoPW3`. Commits follow `task-11: <what>` | VERIFIED | TASK-11 |
+| L-097 | Tariffs | Tariff Manager persistence is backed by `InMemoryTariffRepository` for demo and offline use. Backend Worker API endpoints and Supabase database persistence are wired in TASK-14 | VERIFIED | TASK-12 |
+| L-098 | Process | TASK-12 was implemented on branch `Sai-AutoPW3`. Commits follow `task-12: <what>` | VERIFIED | TASK-12 |
