@@ -40,7 +40,6 @@ import {
   handleGetCapabilities,
   handleGetDemoEnergy,
   handleGetDemoLive,
-  handleGetLive,
   handleGetSite,
   handleListSites,
 } from '../routes/sites';
@@ -68,6 +67,13 @@ import {
   handleListDiscoveredSites,
   handleTeslaCallback,
 } from '../routes/tesla';
+import {
+  handleGetCosts,
+  handleGetEnergy,
+  handleGetLiveTelemetry,
+  handleGetPower,
+} from '../routes/telemetry';
+import type { CostsQuery, EnergyQuery, PowerQuery } from '@autopw3/shared';
 import { MockTeslaClient } from '../providers/tesla/mock-adapter';
 import type { ITeslaClient } from '../providers/tesla/client';
 import { InMemoryOAuthStateStore, type OAuthStateStore } from '../providers/tesla/oauth';
@@ -584,7 +590,40 @@ export async function handleApiRequest(
       break;
     }
     case 'getLive': {
-      handlerResponse = await handleGetLive(pathParams['siteId']!, repo, requestId);
+      handlerResponse = await handleGetLiveTelemetry(
+        pathParams['siteId']!,
+        repo,
+        requestId,
+        tokenStore,
+        teslaClient,
+      );
+      break;
+    }
+    case 'getPower': {
+      handlerResponse = await handleGetPower(
+        pathParams['siteId']!,
+        parsedQuery as unknown as PowerQuery,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'getEnergy': {
+      handlerResponse = await handleGetEnergy(
+        pathParams['siteId']!,
+        parsedQuery as unknown as EnergyQuery,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'getCosts': {
+      handlerResponse = await handleGetCosts(
+        pathParams['siteId']!,
+        parsedQuery as unknown as CostsQuery,
+        repo,
+        requestId,
+      );
       break;
     }
     case 'getDemoLive': {

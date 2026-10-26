@@ -3,14 +3,18 @@ import type {
   CreateRuleRequest,
   CreateSiteRequest,
   CreateTariffRequest,
+  EnergyInterval,
+  EnergySeriesPoint,
   EnergySite,
   Household,
   HouseholdSettingsView,
+  PersistedPowerSample,
   Role,
   Tariff,
   TeslaLinkStatus,
   UpdateRuleRequest,
 } from '@autopw3/shared';
+import type { TelemetrySyncState } from '../services/ingestion/types';
 
 export interface MemberItem {
   readonly userId: string;
@@ -101,6 +105,7 @@ export interface Repository {
   ): Promise<{ items: readonly EnergySite[]; nextCursor: string | null }>;
   getSite(siteId: string): Promise<EnergySite | null>;
   getHouseholdIdForSite(siteId: string): Promise<string | null>;
+  getProviderSiteId(siteId: string): Promise<string | null>;
   getSiteCapabilities(siteId: string): Promise<readonly SiteCapabilityItem[]>;
   createSite(householdId: string, site: CreateSiteRequest): Promise<EnergySite>;
   getTeslaLink(householdId: string): Promise<TeslaLinkStatus>;
@@ -143,6 +148,48 @@ export interface Repository {
     limit: number,
     cursor?: string,
   ): Promise<{ items: readonly CommandItem[]; nextCursor: string | null }>;
+  recordPowerSample(siteId: string, sample: PersistedPowerSample): Promise<void>;
+  getLatestPowerSample(siteId: string): Promise<PersistedPowerSample | null>;
+  queryPowerSamples(
+    siteId: string,
+    from: string,
+    to: string,
+    limit: number,
+    cursor?: string,
+  ): Promise<{ items: readonly PersistedPowerSample[]; nextCursor: string | null }>;
+  recordEnergyIntervals(siteId: string, intervals: readonly EnergyInterval[]): Promise<void>;
+  queryEnergyIntervals(
+    siteId: string,
+    from: string,
+    to: string,
+  ): Promise<readonly EnergyInterval[]>;
+  getHourlyRollups(siteId: string, from: string, to: string): Promise<readonly EnergySeriesPoint[]>;
+  saveHourlyRollups(siteId: string, rollups: readonly EnergySeriesPoint[]): Promise<void>;
+  getDailyRollups(siteId: string, from: string, to: string): Promise<readonly EnergySeriesPoint[]>;
+  saveDailyRollups(siteId: string, rollups: readonly EnergySeriesPoint[]): Promise<void>;
+  getSyncState(siteId: string, stream: 'LIVE' | 'HISTORY'): Promise<TelemetrySyncState | null>;
+  updateSyncState(
+    siteId: string,
+    stream: 'LIVE' | 'HISTORY',
+    update: Partial<TelemetrySyncState>,
+  ): Promise<void>;
+  updateSiteConnectionState(
+    siteId: string,
+    state: 'CONNECTING' | 'LIVE' | 'STALE' | 'ERROR' | 'DISCONNECTED',
+  ): Promise<void>;
+  recordProviderUsage(
+    householdId: string,
+    category: 'DATA' | 'COMMAND' | 'WAKE' | 'STREAM' | 'AUTH',
+    success: boolean,
+    date?: string,
+  ): Promise<void>;
+  getProviderUsage(
+    householdId: string,
+    date: string,
+    category: 'DATA' | 'COMMAND' | 'WAKE' | 'STREAM' | 'AUTH',
+  ): Promise<{ requestCount: number; errorCount: number }>;
+  purgeOldMetricsLog(olderThanUtc: string, dryRun: boolean): Promise<{ deletedCount: number }>;
+  purgeOldScheduledJobs(olderThanUtc: string, dryRun: boolean): Promise<{ deletedCount: number }>;
 }
 
 export class InMemoryRepository implements Repository {
@@ -151,12 +198,23 @@ export class InMemoryRepository implements Repository {
   private readonly invitations = new Map<string, InvitationItem & { tokenHash: string }>();
   private readonly sites = new Map<string, EnergySite>();
   private readonly siteHouseholdMap = new Map<string, string>();
+  private readonly siteProviderIds = new Map<string, string>();
   private readonly tariffs = new Map<string, Tariff>();
   private readonly tariffHouseholdMap = new Map<string, string>();
   private readonly rules = new Map<string, AutomationRule>();
   private readonly ruleSiteMap = new Map<string, string>();
   private readonly commands = new Map<string, CommandItem>();
   private readonly teslaLinks = new Map<string, TeslaLinkStatus>();
+  private readonly powerSamples = new Map<string, PersistedPowerSample[]>();
+  private readonly intervals = new Map<string, Map<string, EnergyInterval>>();
+  private readonly hourly = new Map<string, Map<string, EnergySeriesPoint>>();
+  private readonly daily = new Map<string, Map<string, EnergySeriesPoint>>();
+  private readonly syncStates = new Map<string, TelemetrySyncState>();
+  private readonly providerUsage = new Map<string, { requestCount: number; errorCount: number }>();
+  private readonly scheduledJobs = new Map<
+    string,
+    { id: string; state: string; createdAt: string; finishedAt?: string }
+  >();
 
   constructor() {
     this.seedDefaultData();
@@ -213,6 +271,7 @@ export class InMemoryRepository implements Repository {
       },
     });
     this.siteHouseholdMap.set(sid, hid);
+    this.siteProviderIds.set(sid, '1234567890');
 
     // Initial Tariff
     const tid = '88888888-8888-4888-8888-888888888888';
@@ -531,6 +590,10 @@ export class InMemoryRepository implements Repository {
     return this.siteHouseholdMap.get(siteId) ?? null;
   }
 
+  async getProviderSiteId(siteId: string): Promise<string | null> {
+    return this.siteProviderIds.get(siteId) ?? null;
+  }
+
   async getSiteCapabilities(_siteId: string): Promise<readonly SiteCapabilityItem[]> {
     return [
       { capability: 'storm_mode', status: 'SUPPORTED', reason: null },
@@ -600,6 +663,7 @@ export class InMemoryRepository implements Repository {
 
     this.sites.set(siteId, site);
     this.siteHouseholdMap.set(siteId, householdId);
+    this.siteProviderIds.set(siteId, request.providerSiteId);
     return site;
   }
 
@@ -783,6 +847,257 @@ export class InMemoryRepository implements Repository {
     const nextCursor =
       page.length === limit && all.length > limit ? page[page.length - 1]!.id : null;
     return { items: page, nextCursor };
+  }
+
+  async recordPowerSample(siteId: string, sample: PersistedPowerSample): Promise<void> {
+    if ((sample.source as string) === 'DEMO') {
+      throw new Error('DEMO source is rejected in powerwall_metrics_log');
+    }
+    let list = this.powerSamples.get(siteId);
+    if (!list) {
+      list = [];
+      this.powerSamples.set(siteId, list);
+    }
+    const existingIdx = list.findIndex((s) => s.sampledAt === sample.sampledAt);
+    if (existingIdx >= 0) {
+      list[existingIdx] = sample;
+    } else {
+      list.push(sample);
+      list.sort((a, b) => a.sampledAt.localeCompare(b.sampledAt));
+    }
+  }
+
+  async getLatestPowerSample(siteId: string): Promise<PersistedPowerSample | null> {
+    const list = this.powerSamples.get(siteId);
+    if (!list || list.length === 0) return null;
+    return list[list.length - 1] ?? null;
+  }
+
+  async queryPowerSamples(
+    siteId: string,
+    from: string,
+    to: string,
+    limit: number,
+    cursor?: string,
+  ): Promise<{ items: readonly PersistedPowerSample[]; nextCursor: string | null }> {
+    const list = this.powerSamples.get(siteId) ?? [];
+    const fromMs = Date.parse(from);
+    const toMs = Date.parse(to);
+    let filtered = list.filter((s) => {
+      const ms = Date.parse(s.sampledAt);
+      return ms >= fromMs && ms < toMs;
+    });
+    if (cursor) {
+      const idx = filtered.findIndex((s) => s.sampledAt === cursor);
+      if (idx >= 0) {
+        filtered = filtered.slice(idx + 1);
+      }
+    }
+    const page = filtered.slice(0, limit);
+    const nextCursor =
+      page.length === limit && filtered.length > limit ? page[page.length - 1]!.sampledAt : null;
+    return { items: page, nextCursor };
+  }
+
+  async recordEnergyIntervals(siteId: string, intervals: readonly EnergyInterval[]): Promise<void> {
+    let siteMap = this.intervals.get(siteId);
+    if (!siteMap) {
+      siteMap = new Map();
+      this.intervals.set(siteId, siteMap);
+    }
+    for (const interval of intervals) {
+      if ((interval.source as string) === 'DEMO') {
+        throw new Error('DEMO source is rejected in energy_intervals');
+      }
+      const key = `${interval.intervalStart}:${interval.resolutionSeconds}`;
+      siteMap.set(key, interval);
+    }
+  }
+
+  async queryEnergyIntervals(
+    siteId: string,
+    from: string,
+    to: string,
+  ): Promise<readonly EnergyInterval[]> {
+    const siteMap = this.intervals.get(siteId);
+    if (!siteMap) return [];
+    const fromMs = Date.parse(from);
+    const toMs = Date.parse(to);
+    return Array.from(siteMap.values())
+      .filter((i) => {
+        const ms = Date.parse(i.intervalStart);
+        return ms >= fromMs && ms < toMs;
+      })
+      .sort((a, b) => a.intervalStart.localeCompare(b.intervalStart));
+  }
+
+  async getHourlyRollups(
+    siteId: string,
+    from: string,
+    to: string,
+  ): Promise<readonly EnergySeriesPoint[]> {
+    const siteMap = this.hourly.get(siteId);
+    if (!siteMap) return [];
+    const fromMs = Date.parse(from);
+    const toMs = Date.parse(to);
+    return Array.from(siteMap.values())
+      .filter((r) => {
+        const ms = Date.parse(r.start);
+        return ms >= fromMs && ms < toMs;
+      })
+      .sort((a, b) => a.start.localeCompare(b.start));
+  }
+
+  async saveHourlyRollups(siteId: string, rollups: readonly EnergySeriesPoint[]): Promise<void> {
+    let siteMap = this.hourly.get(siteId);
+    if (!siteMap) {
+      siteMap = new Map();
+      this.hourly.set(siteId, siteMap);
+    }
+    for (const r of rollups) {
+      siteMap.set(r.start, r);
+    }
+  }
+
+  async getDailyRollups(
+    siteId: string,
+    from: string,
+    to: string,
+  ): Promise<readonly EnergySeriesPoint[]> {
+    const siteMap = this.daily.get(siteId);
+    if (!siteMap) return [];
+    const fromMs = Date.parse(from);
+    const toMs = Date.parse(to);
+    return Array.from(siteMap.values())
+      .filter((r) => {
+        const ms = Date.parse(r.start);
+        return ms >= fromMs && ms < toMs;
+      })
+      .sort((a, b) => a.start.localeCompare(b.start));
+  }
+
+  async saveDailyRollups(siteId: string, rollups: readonly EnergySeriesPoint[]): Promise<void> {
+    let siteMap = this.daily.get(siteId);
+    if (!siteMap) {
+      siteMap = new Map();
+      this.daily.set(siteId, siteMap);
+    }
+    for (const r of rollups) {
+      siteMap.set(r.localDate ?? r.start, r);
+    }
+  }
+
+  async getSyncState(
+    siteId: string,
+    stream: 'LIVE' | 'HISTORY',
+  ): Promise<TelemetrySyncState | null> {
+    const key = `${siteId}:${stream}`;
+    return this.syncStates.get(key) ?? null;
+  }
+
+  async updateSyncState(
+    siteId: string,
+    stream: 'LIVE' | 'HISTORY',
+    update: Partial<TelemetrySyncState>,
+  ): Promise<void> {
+    const key = `${siteId}:${stream}`;
+    const existing = this.syncStates.get(key);
+    const merged: TelemetrySyncState = {
+      siteId,
+      stream,
+      lastAttemptAt: update.lastAttemptAt ?? existing?.lastAttemptAt ?? null,
+      lastSuccessAt: update.lastSuccessAt ?? existing?.lastSuccessAt ?? null,
+      lastStatus:
+        update.lastStatus !== undefined ? update.lastStatus : (existing?.lastStatus ?? null),
+      lastErrorCode:
+        update.lastErrorCode !== undefined
+          ? update.lastErrorCode
+          : (existing?.lastErrorCode ?? null),
+      cursor: update.cursor !== undefined ? update.cursor : (existing?.cursor ?? null),
+      latestSampleAt:
+        update.latestSampleAt !== undefined
+          ? update.latestSampleAt
+          : (existing?.latestSampleAt ?? null),
+      consecutiveFailures:
+        update.consecutiveFailures !== undefined
+          ? update.consecutiveFailures
+          : (existing?.consecutiveFailures ?? 0),
+    };
+    this.syncStates.set(key, merged);
+  }
+
+  async updateSiteConnectionState(
+    siteId: string,
+    state: 'CONNECTING' | 'LIVE' | 'STALE' | 'ERROR' | 'DISCONNECTED',
+  ): Promise<void> {
+    const site = this.sites.get(siteId);
+    if (site) {
+      this.sites.set(siteId, {
+        ...site,
+        connectionState: state,
+      });
+    }
+  }
+
+  async recordProviderUsage(
+    householdId: string,
+    category: 'DATA' | 'COMMAND' | 'WAKE' | 'STREAM' | 'AUTH',
+    success: boolean,
+    date?: string,
+  ): Promise<void> {
+    const usageDate = date ?? new Date().toISOString().substring(0, 10);
+    const key = `${householdId}:${usageDate}:${category}`;
+    const curr = this.providerUsage.get(key) ?? { requestCount: 0, errorCount: 0 };
+    this.providerUsage.set(key, {
+      requestCount: curr.requestCount + 1,
+      errorCount: curr.errorCount + (success ? 0 : 1),
+    });
+  }
+
+  async getProviderUsage(
+    householdId: string,
+    date: string,
+    category: 'DATA' | 'COMMAND' | 'WAKE' | 'STREAM' | 'AUTH',
+  ): Promise<{ requestCount: number; errorCount: number }> {
+    const key = `${householdId}:${date}:${category}`;
+    return this.providerUsage.get(key) ?? { requestCount: 0, errorCount: 0 };
+  }
+
+  async purgeOldMetricsLog(
+    olderThanUtc: string,
+    dryRun: boolean,
+  ): Promise<{ deletedCount: number }> {
+    let deleted = 0;
+    for (const [siteId, list] of this.powerSamples.entries()) {
+      const remaining: PersistedPowerSample[] = [];
+      for (const sample of list) {
+        if (sample.sampledAt < olderThanUtc) {
+          deleted++;
+        } else {
+          remaining.push(sample);
+        }
+      }
+      if (!dryRun) {
+        this.powerSamples.set(siteId, remaining);
+      }
+    }
+    return { deletedCount: deleted };
+  }
+
+  async purgeOldScheduledJobs(
+    olderThanUtc: string,
+    dryRun: boolean,
+  ): Promise<{ deletedCount: number }> {
+    let deleted = 0;
+    for (const [jobId, job] of this.scheduledJobs.entries()) {
+      if (job.finishedAt && job.finishedAt < olderThanUtc) {
+        deleted++;
+        if (!dryRun) {
+          this.scheduledJobs.delete(jobId);
+        }
+      }
+    }
+    return { deletedCount: deleted };
   }
 
   private async hashToken(token: string): Promise<string> {

@@ -572,4 +572,20 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Rather than hardcoding North American or guessing European Fleet API URLs, the Worker calls `GET /api/1/users/region` on token exchange to discover the user's home cluster (e.g. `eu`, `na`) and authoritative `fleet_api_base_url`. This URL is saved with the site credentials and used for all subsequent device calls.
 - **Rationale:** S8 research finding; ensures compliance with regional data residency (GDPR, CCPA) and avoids routing EU sites through North American gateways.
 
+## D-100 Resumable cursor-based telemetry ingestion with per-site failure isolation (TASK-16)
+- **Status:** Proposed
+- **Decision:** Live telemetry status polling (`/live_status`) and historical calendar sync (`/calendar_history`) run on separate schedules and code paths. Historical sync tracks progress per site via `telemetry_sync_state` using a `lastCompletedIntervalEnd` cursor. When a site encounters rate-limiting or authentication failures, its failure counter is incremented with exponential backoff while other households continue syncing without blockage.
+- **Rationale:** D-011 and TASK-16 requirements; guarantees reliable backfills, prevents duplicate interval insertion, and protects multi-household deployments against cascade failures.
+
+## D-101 DST-aware site-local calendar day rollup computation (TASK-16)
+- **Status:** Proposed
+- **Decision:** Hourly rollups strictly align to whole UTC hours `[HH:00:00Z, (HH+1):00:00Z)`. Daily rollups compute over the site-local calendar day (local midnight to next local midnight) derived via `localDayBounds(site.timezone, date)`, automatically accounting for 23-hour, 24-hour, and 25-hour DST transitions. Completeness is strictly evaluated as total covered duration over expected day length.
+- **Rationale:** Prevents energy shift errors across daylight saving boundaries; ensures daily energy sums match utility billing cycles.
+
+## D-102 Scheduled cron dispatcher and batched retention with dry-run support (TASK-16)
+- **Status:** Proposed
+- **Decision:** The Cloudflare scheduled handler dispatches five distinct sub-jobs across active households: (1) token maintenance, (2) live status fetch, (3) historical sync, (4) hourly/daily rollups, and (5) retention cleanup. Data retention enforces 90-day purging of raw power samples and 30-day purging of completed jobs, supporting a non-destructive `dryRun` mode for auditability.
+- **Rationale:** D-011 and kit review item 12; respects Cloudflare subrequest bounds and preserves database performance.
+
+
 

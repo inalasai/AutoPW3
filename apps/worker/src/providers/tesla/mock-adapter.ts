@@ -6,13 +6,20 @@ import type { TeslaRawEnergyHistory, TeslaRawLiveStatus, TeslaRawSiteInfo } from
 export class MockTeslaClient implements ITeslaClient {
   readonly mockSiteId: string;
   readonly mockSiteName: string;
+  private timestampProvider?: (() => string) | undefined;
 
   constructor(
     mockSiteId = '22222222-2222-4222-8222-222222222222',
     mockSiteName = 'Mock Tesla Powerwall 3',
+    timestampProvider?: (() => string) | undefined,
   ) {
     this.mockSiteId = mockSiteId;
     this.mockSiteName = mockSiteName;
+    this.timestampProvider = timestampProvider;
+  }
+
+  setTimestampProvider(fn: () => string): void {
+    this.timestampProvider = fn;
   }
 
   async getRegion(_accessToken: string): Promise<{ region: string; fleetApiBaseUrl: string }> {
@@ -63,7 +70,7 @@ export class MockTeslaClient implements ITeslaClient {
       grid_power: -800, // Exporting 800W
       load_power: 1500,
       percentage_charged: 72.4,
-      timestamp: new Date().toISOString(),
+      timestamp: this.timestampProvider ? this.timestampProvider() : new Date().toISOString(),
       grid_status: 'Active',
       island_status: 'on_grid',
     };
