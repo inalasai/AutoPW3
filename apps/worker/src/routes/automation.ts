@@ -3,6 +3,7 @@ import type {
   CommandAccepted,
   CommandRequest,
   CreateRuleRequest,
+  Role,
   UpdateRuleRequest,
 } from '@autopw3/shared';
 import type { Repository } from '../db/repository';
@@ -80,6 +81,67 @@ export async function handleUpdateRule(
     return errorResponse('NOT_FOUND', 'Rule not found', requestId);
   }
   return jsonResponse(result.rule, 200, requestId);
+}
+
+export async function handleDeleteRule(
+  ruleId: string,
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  const deleted = await repo.deleteRule(ruleId);
+  if (!deleted) {
+    return errorResponse('NOT_FOUND', 'Rule not found', requestId);
+  }
+  return jsonResponse({ success: true }, 200, requestId);
+}
+
+export async function handleActivateRule(
+  ruleId: string,
+  callerRole: Role,
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  if (callerRole !== 'ADMIN') {
+    return errorResponse(
+      'FORBIDDEN',
+      'Only administrators can activate automation rules',
+      requestId,
+    );
+  }
+
+  const result = await repo.setRuleMode(ruleId, 'ACTIVE');
+  if (result.error === 'NOT_FOUND') {
+    return errorResponse('NOT_FOUND', 'Rule not found', requestId);
+  }
+  return jsonResponse(result.rule, 200, requestId);
+}
+
+export async function handleDeactivateRule(
+  ruleId: string,
+  mode: 'DISABLED' | 'DRY_RUN',
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  const result = await repo.setRuleMode(ruleId, mode);
+  if (result.error === 'NOT_FOUND') {
+    return errorResponse('NOT_FOUND', 'Rule not found', requestId);
+  }
+  return jsonResponse(result.rule, 200, requestId);
+}
+
+export async function handleListExecutions(
+  siteId: string,
+  query: { limit?: number; cursor?: string },
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  const site = await repo.getSite(siteId);
+  if (!site) {
+    return errorResponse('NOT_FOUND', 'Site not found', requestId);
+  }
+  const limit = Math.min(Math.max(1, query.limit ?? 50), 200);
+  const result = await repo.listAutomationExecutions(siteId, limit, query.cursor);
+  return jsonResponse(result, 200, requestId);
 }
 
 export async function handleCreateCommand(

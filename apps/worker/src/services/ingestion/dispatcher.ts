@@ -14,11 +14,14 @@ export interface IngestionDispatcherDependencies {
   readonly clock?: Clock;
 }
 
+import { runAutomationForSite } from '../automation/runner';
+
 export interface DispatcherReport {
   readonly timestamp: string;
   readonly liveSyncCount: number;
   readonly historySyncCount: number;
   readonly rollupsComputedCount: number;
+  readonly automationEvaluatedCount: number;
   readonly errors: readonly { siteId?: string; error: string }[];
 }
 
@@ -74,6 +77,7 @@ export async function dispatchScheduledCronJobs(
   let liveSyncCount = 0;
   let historySyncCount = 0;
   let rollupsComputedCount = 0;
+  let automationEvaluatedCount = 0;
 
   // 3. Process each site with strict failure isolation
   for (const siteId of sitesToSync) {
@@ -122,6 +126,25 @@ export async function dispatchScheduledCronJobs(
         error: `History sync threw: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
+
+    // 3d. Tariff-aware automation rule evaluation and execution
+    try {
+      const autoRes = await runAutomationForSite(siteId, now, {
+        repo: deps.repo,
+        teslaClient: deps.teslaClient,
+        tokenStore: deps.tokenStore,
+        clock,
+      });
+      automationEvaluatedCount += autoRes.evaluatedCount;
+      for (const err of autoRes.errors) {
+        errors.push({ siteId, error: err });
+      }
+    } catch (err: unknown) {
+      errors.push({
+        siteId,
+        error: `Automation run threw: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
   }
 
   // 4. Daily retention cleanup (runs once a day or on schedule)
@@ -138,6 +161,7 @@ export async function dispatchScheduledCronJobs(
     liveSyncCount,
     historySyncCount,
     rollupsComputedCount,
+    automationEvaluatedCount,
     errors,
   };
 }

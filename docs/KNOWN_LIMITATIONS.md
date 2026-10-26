@@ -115,5 +115,7 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-109 | Process | TASK-16 was implemented on branch `Sai-AutoPW3`. Commits follow `task-16: <what>` | VERIFIED | TASK-16 |
 | L-110 | Commands | `off_grid_vehicle_charging_reserve` and `time_of_use_settings` remain `UNVERIFIED` until hardware verification; controls are disabled in the UI and rejected by the backend | UNVERIFIED | TASK-17 |
 | L-111 | Process | TASK-17 was implemented on branch `Sai-AutoPW3`. Commits follow `task-17: <what>` | VERIFIED | TASK-17 |
+| L-112 | Automation | Rule condition evaluation currently supports `TIME_WINDOW`, `BATTERY_SOC`, and `IMPORT_RATE` conditions; complex multi-stage solar forecast and dynamic load predictions are deferred to future optimization tasks | VERIFIED | TASK-18 |
+| L-113 | Process | TASK-18 was implemented on branch `Sai-AutoPW3`. Commits follow `task-18: <what>` | VERIFIED | TASK-18 |
 
 

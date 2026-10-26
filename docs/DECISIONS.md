@@ -597,5 +597,15 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Each household has an authoritative `automation_paused` toggle. When paused, any automation-originated commands are blocked before dispatch. Operations marked `UNVERIFIED` (such as off-grid vehicle charging reserve and time-of-use schedule push) or `NOT_SUPPORTED` (forced charging, forced export, solar bypass, manual islanding per Rule D-003) are disabled in the UI and strictly rejected by the backend with HTTP 422 (`VALIDATION_FAILED`).
 - **Rationale:** Rule D-003, Task 17 stop conditions; prevents unverified commands from affecting live hardware and guarantees an immediate emergency kill switch for automated control.
 
+## D-105 Priority-based rule evaluation with deterministic conflict resolution (TASK-18)
+- **Status:** Proposed
+- **Decision:** Rules are evaluated strictly in descending priority order (`priority` high-to-low, tie-broken deterministically by `ruleId`). If two or more matching rules attempt to set the same control target (or act within the same evaluation window), the highest priority rule wins and executes; lower priority conflicting rules are recorded with decision `SKIPPED_CONFLICT`. Evaluation context requires fresh telemetry (`SKIPPED_STALE` if beyond staleness threshold) and unpaused household automation status (`SKIPPED_PAUSED`).
+- **Rationale:** Prevents contradictory or oscillating device configuration changes; ensures deterministic, auditable resolution when overlapping rules match the same state.
+
+## D-106 Atomic slot idempotency and dry-run safety barrier (TASK-18)
+- **Status:** Proposed
+- **Decision:** Scheduled rule execution enforces an atomic slot idempotency barrier derived from `(ruleId, siteId, scheduledSlot)`. Duplicate triggers for the same scheduled slot are immediately deduplicated by `recordAutomationExecution`. Rules default to `DRY_RUN` mode upon creation, which records simulated decisions (`WOULD_ACT`) in `automation_executions` and is structurally blocked from calling control endpoints or dispatching commands. Promotion to `ACTIVE` requires explicit administrative action (`ADMIN` role check), and any delayed execution beyond `maxMissedMinutes` is aborted with `SKIPPED_MISSED`.
+- **Rationale:** Guarantees zero unverified dispatches to physical Powerwalls; provides users with full visibility into rule behavior before enabling real hardware actuations.
+
 
 

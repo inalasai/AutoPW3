@@ -1,10 +1,9 @@
 import { Link } from 'react-router';
 import { buttonClasses } from '../../components/ui/Button';
 import { DataTable, GlassCard } from '../../components/ui/display';
-import { ErrorBanner } from '../../components/ui/feedback';
-import { useToast } from '../../components/ui/toast';
-import { ReadOnlyNotice, WriteButton } from '../../features/auth/permissions';
+import { ReadOnlyNotice } from '../../features/auth/permissions';
 import { Analytics } from '../../features/analytics';
+import { AutomationManager } from '../../features/automation';
 import { ControlMatrix } from '../../features/controls';
 import { TariffManager } from '../../features/tariffs';
 import { Page, PlannedFeature, useDocumentTitle } from './Page';
@@ -27,34 +26,7 @@ export function ControlsPage() {
 }
 
 export function AutomationPage() {
-  const toast = useToast();
-  return (
-    <Page
-      title="Automation"
-      description="Rules that act on conditions such as time of day, battery level and import rate."
-      actions={
-        <WriteButton
-          onClick={() => {
-            toast.push({ title: 'Rule editing is built in TASK-18' });
-          }}
-        >
-          New rule
-        </WriteButton>
-      }
-    >
-      <ReadOnlyNotice what="change rules" />
-      <ErrorBanner
-        tone="info"
-        title="Automation starts switched off"
-        message="New rules are disabled or dry-run. A dry run records what would have happened and never sends a command."
-      />
-      <PlannedFeature
-        title="Rules and executions"
-        task="18"
-        description="Create rules, review dry-run results and see every execution with the reason it did or did not act."
-      />
-    </Page>
-  );
+  return <AutomationManager />;
 }
 
 export function SettingsPage() {

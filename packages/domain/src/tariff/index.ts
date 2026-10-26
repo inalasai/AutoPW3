@@ -46,7 +46,13 @@ export type {
 
 export { decimalFrom, minorUnitDigits, roundToMinorUnit } from './money';
 
-export { dayTypeOf, inSeason, instantsOfLocalMinute, localDay } from './calendar';
+export {
+  dayTypeOf,
+  inSeason,
+  instantsOfLocalMinute,
+  localDay,
+  localDateAndMinute,
+} from './calendar';
 export type { LocalDay } from './calendar';
 
 export * from './fixtures';

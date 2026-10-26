@@ -54,10 +54,13 @@ import {
   handleValidateTariff,
 } from '../routes/tariffs';
 import {
+  handleActivateRule,
   handleCreateCommand,
   handleCreateRule,
+  handleDeleteRule,
   handleGetCommand,
   handleListCommands,
+  handleListExecutions,
   handleListRules,
   handlePauseAutomation,
   handleResumeAutomation,
@@ -366,6 +369,7 @@ export async function handleApiRequest(
   }
 
   // 11. Authoritative Membership & Role Check
+  let userRole: Role = 'READ_ONLY';
   if (spec.access !== 'public' && spec.access !== 'any') {
     let targetHouseholdId: string | null = null;
     if (pathParams['hid']) {
@@ -426,7 +430,7 @@ export async function handleApiRequest(
       );
     }
 
-    const userRole = membership.role;
+    userRole = membership.role;
     const minRole = ACCESS_MIN_ROLE[spec.access];
 
     if (minRole === 'ADMIN' && userRole !== 'ADMIN') {
@@ -722,6 +726,23 @@ export async function handleApiRequest(
       handlerResponse = await handleUpdateRule(
         pathParams['ruleId']!,
         parsedBody as UpdateRuleRequest,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'activateRule': {
+      handlerResponse = await handleActivateRule(pathParams['ruleId']!, userRole, repo, requestId);
+      break;
+    }
+    case 'deleteRule': {
+      handlerResponse = await handleDeleteRule(pathParams['ruleId']!, repo, requestId);
+      break;
+    }
+    case 'listExecutions': {
+      handlerResponse = await handleListExecutions(
+        pathParams['siteId']!,
+        parsedQuery as { limit?: number; cursor?: string },
         repo,
         requestId,
       );

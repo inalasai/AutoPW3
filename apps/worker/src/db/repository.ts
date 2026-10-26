@@ -1,4 +1,5 @@
 import type {
+  AutomationExecution,
   AutomationRule,
   CommandEvent,
   CreateRuleRequest,
@@ -11,6 +12,7 @@ import type {
   HouseholdSettingsView,
   PersistedPowerSample,
   Role,
+  RuleMode,
   Tariff,
   TeslaLinkStatus,
   UpdateRuleRequest,
@@ -139,6 +141,7 @@ export interface Repository {
     limit: number,
     cursor?: string,
   ): Promise<{ items: readonly AutomationRule[]; nextCursor: string | null }>;
+  getRule(ruleId: string): Promise<AutomationRule | null>;
   getHouseholdIdForRule(ruleId: string): Promise<string | null>;
   getHouseholdIdForCommand(commandId: string): Promise<string | null>;
   createRule(siteId: string, rule: CreateRuleRequest): Promise<AutomationRule>;
@@ -146,6 +149,19 @@ export interface Repository {
     ruleId: string,
     rule: UpdateRuleRequest,
   ): Promise<{ rule?: AutomationRule; error?: 'NOT_FOUND' | 'VERSION_MISMATCH' }>;
+  deleteRule(ruleId: string): Promise<boolean>;
+  setRuleMode(
+    ruleId: string,
+    mode: RuleMode,
+  ): Promise<{ rule?: AutomationRule; error?: 'NOT_FOUND' }>;
+  recordAutomationExecution(
+    execution: AutomationExecution,
+  ): Promise<{ execution: AutomationExecution; alreadyRecorded: boolean }>;
+  listAutomationExecutions(
+    siteId: string,
+    limit: number,
+    cursor?: string,
+  ): Promise<{ items: readonly AutomationExecution[]; nextCursor: string | null }>;
   getAutomationPaused(householdId: string): Promise<boolean>;
   setAutomationPaused(
     householdId: string,
@@ -233,6 +249,8 @@ export class InMemoryRepository implements Repository {
   private readonly tariffHouseholdMap = new Map<string, string>();
   private readonly rules = new Map<string, AutomationRule>();
   private readonly ruleSiteMap = new Map<string, string>();
+  private readonly automationExecutions = new Map<string, AutomationExecution>();
+  private readonly ruleSlotExecutionMap = new Map<string, string>();
   private readonly commands = new Map<string, StoredCommandRecord>();
   private readonly commandEvents = new Map<string, CommandEvent[]>();
   private readonly teslaLinks = new Map<string, TeslaLinkStatus>();
@@ -884,6 +902,67 @@ export class InMemoryRepository implements Repository {
     };
     this.rules.set(ruleId, updated);
     return { rule: updated };
+  }
+
+  async getRule(ruleId: string): Promise<AutomationRule | null> {
+    return this.rules.get(ruleId) ?? null;
+  }
+
+  async deleteRule(ruleId: string): Promise<boolean> {
+    const existed = this.rules.delete(ruleId);
+    this.ruleSiteMap.delete(ruleId);
+    return existed;
+  }
+
+  async setRuleMode(
+    ruleId: string,
+    mode: RuleMode,
+  ): Promise<{ rule?: AutomationRule; error?: 'NOT_FOUND' }> {
+    const existing = this.rules.get(ruleId);
+    if (!existing) return { error: 'NOT_FOUND' };
+    const updated: AutomationRule = {
+      ...existing,
+      mode,
+      version: existing.version + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    this.rules.set(ruleId, updated);
+    return { rule: updated };
+  }
+
+  async recordAutomationExecution(
+    execution: AutomationExecution,
+  ): Promise<{ execution: AutomationExecution; alreadyRecorded: boolean }> {
+    const slotKey = `${execution.ruleId}:${execution.scheduledSlot}`;
+    const existingId = this.ruleSlotExecutionMap.get(slotKey);
+    if (existingId) {
+      const existing = this.automationExecutions.get(existingId);
+      if (existing) {
+        return { execution: existing, alreadyRecorded: true };
+      }
+    }
+    this.automationExecutions.set(execution.id, execution);
+    this.ruleSlotExecutionMap.set(slotKey, execution.id);
+    return { execution, alreadyRecorded: false };
+  }
+
+  async listAutomationExecutions(
+    siteId: string,
+    limit: number,
+    cursor?: string,
+  ): Promise<{ items: readonly AutomationExecution[]; nextCursor: string | null }> {
+    let all = Array.from(this.automationExecutions.values())
+      .filter((e) => e.siteId === siteId)
+      .sort((a, b) => new Date(b.evaluatedAt).getTime() - new Date(a.evaluatedAt).getTime());
+
+    if (cursor) {
+      const idx = all.findIndex((e) => e.id === cursor);
+      if (idx >= 0) all = all.slice(idx + 1);
+    }
+    const page = all.slice(0, limit);
+    const nextCursor =
+      page.length === limit && all.length > limit ? page[page.length - 1]!.id : null;
+    return { items: page, nextCursor };
   }
 
   async getAutomationPaused(householdId: string): Promise<boolean> {
