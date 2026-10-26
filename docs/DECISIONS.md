@@ -557,4 +557,19 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** The API never trusts client-supplied role or household claims in the JWT or headers. The caller's role is queried authoritatively from `household_members`. Ordinary user queries and mutations execute with user-scoped credentials so PostgreSQL Row-Level Security (RLS) policies apply. Privileged `service_role` access is strictly isolated and documented in `docs/API_OPERATIONS.md` under an explicit register (S1 through S9).
 - **Rationale:** Core project rule 1 (roles per household membership; backend and database authoritative); SECURITY_MODEL §4; prevents privilege escalation if frontend or local state is manipulated.
 
+## D-097 Authenticated AES-256-GCM token encryption at rest (TASK-15)
+- **Status:** Proposed
+- **Decision:** All Tesla OAuth tokens (access tokens, rotating refresh tokens) are encrypted before persistence using AES-256-GCM with a 128-bit authentication tag and a unique 96-bit random IV per record generated via `crypto.getRandomValues`. The payload stores `keyVersion` enabling zero-downtime key rotation via keyrings. Key material is sourced exclusively from Cloudflare Worker secrets (`TOKEN_ENCRYPTION_KEY`). Any ciphertext or IV tampering throws `TamperError`.
+- **Rationale:** Operation S4; PROJECT-CONTEXT rule 2 (Tesla tokens encrypted at rest and never leave the server); prevents token exposure in database snapshots or dumps.
+
+## D-098 Concurrency-locked single-use refresh token rotation (TASK-15)
+- **Status:** Proposed
+- **Decision:** Tesla refresh tokens are strictly single-use and rotate on every exchange, with a 3-month lifespan. To prevent race conditions where parallel Worker requests invalidate each other's refresh tokens, token refreshes require an atomic concurrency lock (`acquireRefreshLock`). Replaced tokens are immediately encrypted and committed to the store before the lock is released.
+- **Rationale:** S3 research finding; prevents accidental account disconnection and 401 `login_required` errors caused by parallel refresh requests.
+
+## D-099 Runtime discovery of regional Tesla Fleet API base URL (TASK-15)
+- **Status:** Proposed
+- **Decision:** Rather than hardcoding North American or guessing European Fleet API URLs, the Worker calls `GET /api/1/users/region` on token exchange to discover the user's home cluster (e.g. `eu`, `na`) and authoritative `fleet_api_base_url`. This URL is saved with the site credentials and used for all subsequent device calls.
+- **Rationale:** S8 research finding; ensures compliance with regional data residency (GDPR, CCPA) and avoids routing EU sites through North American gateways.
+
 

@@ -1,7 +1,9 @@
 import {
   ACCESS_MIN_ROLE,
   pathParamsSchema,
+  type ConnectTeslaRequest,
   type CreateRuleRequest,
+  type CreateSiteRequest,
   type CreateTariffRequest,
   type EndTariffRequest,
   type PutPricePointsRequest,
@@ -58,15 +60,36 @@ import {
   handleListRules,
   handleUpdateRule,
 } from '../routes/automation';
+import {
+  handleConnectTesla,
+  handleCreateSite,
+  handleDisconnectTesla,
+  handleGetTeslaLink,
+  handleListDiscoveredSites,
+  handleTeslaCallback,
+} from '../routes/tesla';
+import { MockTeslaClient } from '../providers/tesla/mock-adapter';
+import type { ITeslaClient } from '../providers/tesla/client';
+import { InMemoryOAuthStateStore, type OAuthStateStore } from '../providers/tesla/oauth';
+import { InMemoryTokenStore, type TokenStore } from '../services/tokens/store';
 
 export interface AppDependencies {
   readonly repo?: Repository | undefined;
   readonly idempotencyStore?: IdempotencyStore | undefined;
   readonly rateLimiter?: InMemoryRateLimiter | undefined;
   readonly jwtConfig?: JwtVerifyConfig | undefined;
+  readonly teslaClient?: ITeslaClient | undefined;
+  readonly tokenStore?: TokenStore | undefined;
+  readonly oauthStateStore?: OAuthStateStore | undefined;
+  readonly fetcher?: typeof fetch | undefined;
 }
 
 const defaultRepo = new InMemoryRepository();
+const defaultOAuthStateStore = new InMemoryOAuthStateStore();
+const defaultTokenStore = new InMemoryTokenStore(
+  '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+);
+const defaultTeslaClient = new MockTeslaClient();
 
 export async function handleApiRequest(
   request: Request,
@@ -119,6 +142,9 @@ export async function handleApiRequest(
   const repo = deps.repo ?? defaultRepo;
   const idempotencyStore = deps.idempotencyStore ?? defaultIdempotencyStore;
   const rateLimiter = deps.rateLimiter ?? defaultRateLimiter;
+  const teslaClient = deps.teslaClient ?? defaultTeslaClient;
+  const tokenStore = deps.tokenStore ?? defaultTokenStore;
+  const oauthStateStore = deps.oauthStateStore ?? defaultOAuthStateStore;
 
   // 4. Request Body Size Limit Check (64 KiB default, 1 MiB for dynamic price points)
   const isPricePointsRoute = apiPath.includes('/price-points');
@@ -496,6 +522,61 @@ export async function handleApiRequest(
     }
     case 'getSite': {
       handlerResponse = await handleGetSite(pathParams['siteId']!, repo, requestId);
+      break;
+    }
+    case 'connectTesla': {
+      handlerResponse = await handleConnectTesla(
+        pathParams['hid']!,
+        parsedBody as ConnectTeslaRequest,
+        user!.userId,
+        env,
+        oauthStateStore,
+        requestId,
+      );
+      break;
+    }
+    case 'teslaCallback': {
+      handlerResponse = await handleTeslaCallback(
+        parsedQuery as { code: string; state: string },
+        env,
+        oauthStateStore,
+        tokenStore,
+        repo,
+        teslaClient,
+        requestId,
+        deps.fetcher,
+      );
+      break;
+    }
+    case 'getTeslaLink': {
+      handlerResponse = await handleGetTeslaLink(pathParams['hid']!, repo, requestId);
+      break;
+    }
+    case 'listDiscoveredSites': {
+      handlerResponse = await handleListDiscoveredSites(
+        pathParams['hid']!,
+        tokenStore,
+        teslaClient,
+        requestId,
+      );
+      break;
+    }
+    case 'createSite': {
+      handlerResponse = await handleCreateSite(
+        pathParams['hid']!,
+        parsedBody as CreateSiteRequest,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'disconnectTesla': {
+      handlerResponse = await handleDisconnectTesla(
+        pathParams['hid']!,
+        repo,
+        tokenStore,
+        requestId,
+      );
       break;
     }
     case 'getCapabilities': {

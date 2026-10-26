@@ -89,7 +89,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 
 **Phase 4 — Backend and Tesla**
 - [x] TASK-14 Worker API core - 12-stage middleware pipeline, asymmetric JWT verification (RS256/ES256), Zod validation, sliding-window rate limiting, idempotency key replay with secret redaction, authoritative DB role enforcement (404 on cross-household), typed route handlers, API_OPERATIONS.md; see docs/handoffs/TASK-14.md
-- [ ] TASK-15 Tesla adapter and OAuth
+- [x] TASK-15 Tesla adapter and OAuth - PKCE authorization-code flow, AES-256-GCM token encryption (Operation S4), rotating refresh token concurrency lock, dynamic regional base URL discovery, central sign normalisation, MockTeslaClient, TESLA_INTEGRATION.md, TESLA_CAPABILITY_MATRIX.md; credentials AWAITING_CREDENTIALS, PR and CI NOT_EXECUTED, see docs/handoffs/TASK-15.md
 - [ ] TASK-16 Telemetry ingestion
 
 **Phase 5 — Controls and operations**

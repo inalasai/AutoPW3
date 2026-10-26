@@ -107,3 +107,6 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-101 | Commands | `POST /api/v1/sites/{siteId}/commands` returns 501 `NOT_IMPLEMENTED` by design until Task 17 (Device Controls) implements hardware payload signing and dispatch | MOCK_ONLY | TASK-14 |
 | L-102 | Backend | Worker API currently runs with `InMemoryRepository` in test and demo environments; live Supabase PostgREST client binding is activated in live deployment | VERIFIED | TASK-14 |
 | L-103 | Process | TASK-14 was implemented on branch `Sai-AutoPW3`. Commits follow `task-14: <what>` | VERIFIED | TASK-14 |
+| L-104 | Tesla | Live Fleet API OAuth credentials and developer application approval require owner credentials; tested against `MockTeslaClient` | AWAITING_CREDENTIALS | TASK-15 |
+| L-105 | Commands | Energy control endpoint request schemas (`/backup`, `/operation`, `/grid_import_export`) are `UNVERIFIED` until traced against a physical Powerwall; capability registry correctly designates them | UNVERIFIED | TASK-15 |
+| L-106 | Process | TASK-15 was implemented on branch `Sai-AutoPW3`. Commits follow `task-15: <what>` | VERIFIED | TASK-15 |

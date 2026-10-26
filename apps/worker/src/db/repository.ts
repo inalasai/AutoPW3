@@ -1,12 +1,14 @@
 import type {
   AutomationRule,
   CreateRuleRequest,
+  CreateSiteRequest,
   CreateTariffRequest,
   EnergySite,
   Household,
   HouseholdSettingsView,
   Role,
   Tariff,
+  TeslaLinkStatus,
   UpdateRuleRequest,
 } from '@autopw3/shared';
 
@@ -100,6 +102,10 @@ export interface Repository {
   getSite(siteId: string): Promise<EnergySite | null>;
   getHouseholdIdForSite(siteId: string): Promise<string | null>;
   getSiteCapabilities(siteId: string): Promise<readonly SiteCapabilityItem[]>;
+  createSite(householdId: string, site: CreateSiteRequest): Promise<EnergySite>;
+  getTeslaLink(householdId: string): Promise<TeslaLinkStatus>;
+  setTeslaLink(householdId: string, status: TeslaLinkStatus): Promise<void>;
+  disconnectTesla(householdId: string): Promise<void>;
   listTariffs(
     householdId: string,
     filter?: { direction?: string; asOf?: string },
@@ -150,6 +156,7 @@ export class InMemoryRepository implements Repository {
   private readonly rules = new Map<string, AutomationRule>();
   private readonly ruleSiteMap = new Map<string, string>();
   private readonly commands = new Map<string, CommandItem>();
+  private readonly teslaLinks = new Map<string, TeslaLinkStatus>();
 
   constructor() {
     this.seedDefaultData();
@@ -533,6 +540,67 @@ export class InMemoryRepository implements Repository {
       { capability: 'export_rule', status: 'UNVERIFIED', reason: 'Awaiting hardware verification' },
       { capability: 'island_mode', status: 'NOT_SUPPORTED', reason: 'Restricted by safety model' },
     ];
+  }
+
+  async getTeslaLink(householdId: string): Promise<TeslaLinkStatus> {
+    return (
+      this.teslaLinks.get(householdId) ?? {
+        state: 'NOT_CONNECTED',
+        scopes: [],
+        lastRefreshAt: null,
+      }
+    );
+  }
+
+  async setTeslaLink(householdId: string, status: TeslaLinkStatus): Promise<void> {
+    this.teslaLinks.set(householdId, status);
+  }
+
+  async disconnectTesla(householdId: string): Promise<void> {
+    this.teslaLinks.set(householdId, {
+      state: 'NOT_CONNECTED',
+      scopes: [],
+      lastRefreshAt: null,
+    });
+    for (const [sid, hid] of this.siteHouseholdMap.entries()) {
+      if (hid === householdId) {
+        const site = this.sites.get(sid);
+        if (site && site.provider === 'TESLA') {
+          this.sites.set(sid, {
+            ...site,
+            connectionState: 'DISCONNECTED',
+          });
+        }
+      }
+    }
+  }
+
+  async createSite(householdId: string, request: CreateSiteRequest): Promise<EnergySite> {
+    const household = this.households.get(householdId);
+    const timezone = request.timezone ?? household?.timezone ?? 'UTC';
+    const siteId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      request.providerSiteId,
+    )
+      ? request.providerSiteId
+      : crypto.randomUUID();
+
+    const site: EnergySite = {
+      id: siteId,
+      name: request.name ?? `Tesla Powerwall (${request.providerSiteId})`,
+      timezone,
+      provider: request.provider,
+      connectionState: 'LIVE',
+      capabilitiesSummary: {
+        supported: 4,
+        unverified: 1,
+        notSupported: 1,
+        disabledBySetting: 0,
+      },
+    };
+
+    this.sites.set(siteId, site);
+    this.siteHouseholdMap.set(siteId, householdId);
+    return site;
   }
 
   async listTariffs(

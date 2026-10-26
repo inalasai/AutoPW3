@@ -21,4 +21,12 @@ export interface Env {
   JWT_ISSUER?: string | undefined;
   /** Optional custom JWKS URL override for tests. Defaults to ${SUPABASE_URL}/auth/v1/.well-known/jwks.json */
   JWT_JWKS_URL?: string | undefined;
+  /** Tesla Fleet API OAuth Client ID. */
+  TESLA_CLIENT_ID?: string | undefined;
+  /** Tesla Fleet API OAuth Client Secret. */
+  TESLA_CLIENT_SECRET?: string | undefined;
+  /** Tesla Fleet API OAuth Redirect URI. */
+  TESLA_REDIRECT_URI?: string | undefined;
+  /** Secret key for encrypting stored Tesla credentials at rest (32 bytes hex/base64). */
+  TOKEN_ENCRYPTION_KEY?: string | undefined;
 }
