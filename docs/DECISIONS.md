@@ -527,3 +527,19 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Persistence uses an explicit `TariffRepository` interface. In demo mode and offline tests, `InMemoryTariffRepository` is seeded with `TARIFF_EXAMPLES`. The repository enforces roles: if `currentRole === 'READ_ONLY'`, `saveTariff` and `endTariff` throw `Error('READ_ONLY role cannot persist tariffs')`. In the UI, controls are disabled for `READ_ONLY` sessions with clear explanations.
 - **Rationale:** TASK-12 acceptance criterion: READ_ONLY cannot persist in UI and data layer; Worker route comes in TASK-14.
 
+## D-091 Direct domain accounting engine derivation for Analytics UI (TASK-13)
+- **Status:** Proposed
+- **Decision:** The Analytics UI does not perform any energy or financial math in components. All totals (kWh, EUR, net cost, self-consumption %, self-sufficiency %, avoided cost, and counterfactual net savings) are computed directly by `packages/domain/src/accounting/account.ts` (`accountForPeriod`). When tariffs change in the repository, the analytics view re-runs the engine, immediately updating all financial and counterfactual metrics.
+- **Rationale:** Stop condition for TASK-13: any number needed that the accounting engine does not produce must be added to the engine with tests rather than computed in a component.
+
+## D-092 Uniform composite grouping for responsive downsampling (TASK-13)
+- **Status:** Proposed
+- **Decision:** When user selects a time range whose interval count exceeds 500 (`MAX_CHART_POINTS`), series are downsampled by uniform composite grouping: stride $K = \lceil N / 500 \rceil$, summing flows using arbitrary-precision Decimal arithmetic and preserving gap flags (`isGap = true` if any constituent interval is suspect or missing). Finer resolutions are never fabricated.
+- **Rationale:** Guarantees fluid 60fps rendering in Recharts across desktop and mobile devices without loss of aggregate energy or financial precision.
+
+## D-093 OWASP formula injection protection in CSV export (TASK-13)
+- **Status:** Proposed
+- **Decision:** All CSV fields are sanitized against formula injection: strings starting with `=`, `+`, `-`, `@`, `\t`, or `\r` have a prepended single quote (`'`). Headers explicitly declare physical and financial units (`kWh`, `EUR`), and numeric figures are formatted as explicit decimal strings.
+- **Rationale:** OWASP CSV Injection prevention; ensuring exported data cannot execute untrusted commands in spreadsheet software (Excel, Google Sheets, Calc).
+
+

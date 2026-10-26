@@ -139,8 +139,6 @@ describe('TariffManager', () => {
       ).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByText(/Effective-dated versioning \(Version 2\)/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Effective-dated versioning \(Version 2\)/i)).toBeInTheDocument();
   });
 });

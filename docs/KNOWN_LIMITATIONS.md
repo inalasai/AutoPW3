@@ -102,3 +102,5 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-096 | Process | TASK-11 was implemented on branch `Sai-AutoPW3`. Commits follow `task-11: <what>` | VERIFIED | TASK-11 |
 | L-097 | Tariffs | Tariff Manager persistence is backed by `InMemoryTariffRepository` for demo and offline use. Backend Worker API endpoints and Supabase database persistence are wired in TASK-14 | VERIFIED | TASK-12 |
 | L-098 | Process | TASK-12 was implemented on branch `Sai-AutoPW3`. Commits follow `task-12: <what>` | VERIFIED | TASK-12 |
+| L-099 | Analytics | Analytics UI in demo mode runs over synthetic telemetry (`createDemoTelemetryProvider` / `demoEnergyIntervals`) and `InMemoryTariffRepository`. Server-side rollup jobs and Worker API endpoints are implemented in TASK-14 and TASK-16 | VERIFIED | TASK-13 |
+| L-100 | Process | TASK-13 was implemented on branch `Sai-AutoPW3`. Commits follow `task-13: <what>` | VERIFIED | TASK-13 |

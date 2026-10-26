@@ -1,13 +1,12 @@
 import { Link } from 'react-router';
-import { useState } from 'react';
 import { COMMAND_CAPABILITIES } from '@autopw3/shared';
 import { buttonClasses } from '../../components/ui/Button';
 import { ConnectionIndicator, DataTable, GlassCard } from '../../components/ui/display';
-import { EmptyState, ErrorBanner } from '../../components/ui/feedback';
-import { BoltIcon, ChartIcon } from '../../components/ui/icons';
-import { SegmentedControl, Tabs } from '../../components/ui/Tabs';
+import { ErrorBanner } from '../../components/ui/feedback';
+import { BoltIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { ReadOnlyNotice, WriteButton } from '../../features/auth/permissions';
+import { Analytics } from '../../features/analytics';
 import { TariffManager } from '../../features/tariffs';
 import { Page, PlannedFeature, useDocumentTitle } from './Page';
 
@@ -16,60 +15,8 @@ import { Page, PlannedFeature, useDocumentTitle } from './Page';
   use, with no data fetching, no authentication and no energy calculation. A dash means "no data", never zero.
 */
 
-type Resolution = 'interval' | 'hourly' | 'daily';
-
 export function AnalyticsPage() {
-  const [resolution, setResolution] = useState<Resolution>('hourly');
-  return (
-    <Page
-      title="Analytics"
-      description="Energy and cost over time, with the resolution and completeness of the data stated."
-      actions={
-        <SegmentedControl
-          label="Resolution"
-          value={resolution}
-          onValueChange={setResolution}
-          options={[
-            { value: 'interval', label: 'Interval' },
-            { value: 'hourly', label: 'Hourly' },
-            { value: 'daily', label: 'Daily' },
-          ]}
-        />
-      }
-    >
-      <GlassCard>
-        <Tabs
-          label="Analytics views"
-          tabs={[
-            {
-              id: 'energy',
-              label: 'Energy',
-              panel: (
-                <EmptyState
-                  headingLevel={2}
-                  icon={ChartIcon}
-                  title="Built in TASK-13"
-                  description="Solar, battery, grid and home energy charts, with a table equivalent for every chart."
-                />
-              ),
-            },
-            {
-              id: 'cost',
-              label: 'Cost',
-              panel: (
-                <EmptyState
-                  headingLevel={2}
-                  icon={ChartIcon}
-                  title="Built in TASK-13"
-                  description="Estimated cost and savings by day and month. Estimates are labelled as estimates."
-                />
-              ),
-            },
-          ]}
-        />
-      </GlassCard>
-    </Page>
-  );
+  return <Analytics />;
 }
 
 export function TariffsPage() {

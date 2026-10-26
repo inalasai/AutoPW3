@@ -85,7 +85,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-10 Tariff engine - rate resolution with deterministic precedence, DST-correct interval splitting and pricing, VAT/levies/standing charge in decimal, validators, example fixtures, property tests; negative prices engine-only, all tariff values `ILLUSTRATIVE EXAMPLE`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-10.md`
 - [x] TASK-11 Accounting engine - power-to-energy integration, energy totals, independent import/export costing, standing charges, VAT, efficiency metrics, counterfactual savings analysis, golden fixtures verified; PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-11.md`
 - [x] TASK-12 Tariff manager UI - create, edit, clone, archive profiles, midnight-crossing decomposition, 24h preview with DST, live engine validation, effective-dated versioning, role-gating, Playwright smoke tests; PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-12.md`
-- [ ] TASK-13 Analytics UI
+- [x] TASK-13 Analytics UI - historical energy and cost charts (Recharts), summary cards, counterfactual savings ("no solar, no battery"), resolution mapping, telemetry completeness and gap disclosure, accessible data table alternatives, CSV export with formula injection protection, Playwright smoke tests; PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-13.md`
 
 **Phase 4 — Backend and Tesla**
 - [ ] TASK-14 Worker API core
