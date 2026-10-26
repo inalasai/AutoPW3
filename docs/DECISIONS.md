@@ -587,5 +587,15 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** The Cloudflare scheduled handler dispatches five distinct sub-jobs across active households: (1) token maintenance, (2) live status fetch, (3) historical sync, (4) hourly/daily rollups, and (5) retention cleanup. Data retention enforces 90-day purging of raw power samples and 30-day purging of completed jobs, supporting a non-destructive `dryRun` mode for auditability.
 - **Rationale:** D-011 and kit review item 12; respects Cloudflare subrequest bounds and preserves database performance.
 
+## D-103 Device command lifecycle and read-back reconciliation (TASK-17)
+- **Status:** Proposed
+- **Decision:** Device command state progression follows an honest state machine (`PENDING`, `CONFIRMED`, `FAILED`, `UNKNOWN`) through explicit phases (`RECORDED`, `DISPATCHING`, `DISPATCHED`, `RECONCILING`, `DONE`). An intent row is recorded in `device_commands` prior to network dispatch. An HTTP 200 from the provider is never treated as confirmation; `CONFIRMED` requires reading back site configuration (`site_info`) and matching target parameters. `physicalOutcomeGuaranteed` is strictly false.
+- **Rationale:** Rule D-015; protects against silent gateway failures, network drops, and misleading UI state where a queued HTTP request is mistaken for physical battery change.
+
+## D-104 Emergency automation pause and strict capability gating (TASK-17)
+- **Status:** Proposed
+- **Decision:** Each household has an authoritative `automation_paused` toggle. When paused, any automation-originated commands are blocked before dispatch. Operations marked `UNVERIFIED` (such as off-grid vehicle charging reserve and time-of-use schedule push) or `NOT_SUPPORTED` (forced charging, forced export, solar bypass, manual islanding per Rule D-003) are disabled in the UI and strictly rejected by the backend with HTTP 422 (`VALIDATION_FAILED`).
+- **Rationale:** Rule D-003, Task 17 stop conditions; prevents unverified commands from affecting live hardware and guarantees an immediate emergency kill switch for automated control.
+
 
 

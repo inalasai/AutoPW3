@@ -1,15 +1,14 @@
 import { freshnessOf, toLiveReading } from '@autopw3/domain';
+import { Decimal, serialiseDecimal } from '@autopw3/shared';
 import type {
   CostsQuery,
   CostsResponse,
   DailyCost,
-  Decimal,
   EnergyQuery,
   EnergySeriesPoint,
   EnergySeriesResponse,
   PowerQuery,
   PowerSeriesResponse,
-  serialiseDecimal,
 } from '@autopw3/shared';
 import type { Repository } from '../db/repository';
 import { errorResponse, jsonResponse } from '../lib/errors';

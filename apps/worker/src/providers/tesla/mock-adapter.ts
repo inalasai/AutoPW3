@@ -1,5 +1,5 @@
 import { normalisePowerReading } from '@autopw3/domain';
-import type { PersistedPowerSample } from '@autopw3/shared';
+import type { OperationMode, PersistedPowerSample } from '@autopw3/shared';
 import type { DiscoveredSite, ITeslaClient } from './client';
 import type { TeslaRawEnergyHistory, TeslaRawLiveStatus, TeslaRawSiteInfo } from './raw-types';
 
@@ -7,6 +7,13 @@ export class MockTeslaClient implements ITeslaClient {
   readonly mockSiteId: string;
   readonly mockSiteName: string;
   private timestampProvider?: (() => string) | undefined;
+
+  public backupReservePercent: number = 20;
+  public operationMode: 'autonomous' | 'self_consumption' = 'self_consumption';
+  public stormModeCapable: boolean = true;
+  public stormModeEnabled: boolean = false;
+  public allowGridCharging: boolean = true;
+  public allowGridExport: boolean = true;
 
   constructor(
     mockSiteId = '22222222-2222-4222-8222-222222222222',
@@ -47,9 +54,10 @@ export class MockTeslaClient implements ITeslaClient {
     return {
       id: this.mockSiteId,
       site_name: this.mockSiteName,
-      storm_mode_capable: true,
-      backup_reserve_percent: 20,
-      default_real_mode: 'self_consumption',
+      storm_mode_capable: this.stormModeCapable,
+      storm_mode_enabled: this.stormModeEnabled,
+      backup_reserve_percent: this.backupReservePercent,
+      default_real_mode: this.operationMode,
       asset_site_id: this.mockSiteId,
       components: {
         solar: true,
@@ -57,6 +65,51 @@ export class MockTeslaClient implements ITeslaClient {
         grid: true,
       },
     };
+  }
+
+  async setBackupReserve(
+    _baseUrl: string,
+    _siteId: string,
+    _accessToken: string,
+    percent: number,
+  ): Promise<{ response?: unknown }> {
+    this.backupReservePercent = percent;
+    return { response: { code: 201, message: 'Updated' } };
+  }
+
+  async setOperationMode(
+    _baseUrl: string,
+    _siteId: string,
+    _accessToken: string,
+    mode: OperationMode,
+  ): Promise<{ response?: unknown }> {
+    this.operationMode = mode.toLowerCase() as 'autonomous' | 'self_consumption';
+    return { response: { code: 201, message: 'Updated' } };
+  }
+
+  async setGridImportExport(
+    _baseUrl: string,
+    _siteId: string,
+    _accessToken: string,
+    params: { allowGridCharging?: boolean; allowGridExport?: boolean },
+  ): Promise<{ response?: unknown }> {
+    if (params.allowGridCharging !== undefined) {
+      this.allowGridCharging = params.allowGridCharging;
+    }
+    if (params.allowGridExport !== undefined) {
+      this.allowGridExport = params.allowGridExport;
+    }
+    return { response: { code: 201, message: 'Updated' } };
+  }
+
+  async setStormMode(
+    _baseUrl: string,
+    _siteId: string,
+    _accessToken: string,
+    enabled: boolean,
+  ): Promise<{ response?: unknown }> {
+    this.stormModeEnabled = enabled;
+    return { response: { code: 201, message: 'Updated' } };
   }
 
   async getLiveStatus(

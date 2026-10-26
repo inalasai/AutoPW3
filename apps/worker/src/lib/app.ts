@@ -1,6 +1,7 @@
 import {
   ACCESS_MIN_ROLE,
   pathParamsSchema,
+  type CommandRequest,
   type ConnectTeslaRequest,
   type CreateRuleRequest,
   type CreateSiteRequest,
@@ -55,8 +56,11 @@ import {
 import {
   handleCreateCommand,
   handleCreateRule,
+  handleGetCommand,
   handleListCommands,
   handleListRules,
+  handlePauseAutomation,
+  handleResumeAutomation,
   handleUpdateRule,
 } from '../routes/automation';
 import {
@@ -393,6 +397,15 @@ export async function handleApiRequest(
           corsConfig,
         );
       }
+    } else if (pathParams['commandId']) {
+      targetHouseholdId = await repo.getHouseholdIdForCommand(pathParams['commandId']);
+      if (!targetHouseholdId) {
+        return applyCorsHeaders(
+          errorResponse('NOT_FOUND', 'Command not found', requestId),
+          request,
+          corsConfig,
+        );
+      }
     }
 
     if (!targetHouseholdId) {
@@ -715,7 +728,16 @@ export async function handleApiRequest(
       break;
     }
     case 'createCommand': {
-      handlerResponse = await handleCreateCommand(pathParams['siteId']!, repo, requestId);
+      handlerResponse = await handleCreateCommand(
+        pathParams['siteId']!,
+        parsedBody as CommandRequest,
+        idempotencyKey ?? crypto.randomUUID(),
+        user?.userId ?? null,
+        repo,
+        requestId,
+        tokenStore,
+        teslaClient,
+      );
       break;
     }
     case 'listCommands': {
@@ -725,6 +747,18 @@ export async function handleApiRequest(
         repo,
         requestId,
       );
+      break;
+    }
+    case 'getCommand': {
+      handlerResponse = await handleGetCommand(pathParams['commandId']!, repo, requestId);
+      break;
+    }
+    case 'pauseAutomation': {
+      handlerResponse = await handlePauseAutomation(pathParams['hid']!, repo, requestId);
+      break;
+    }
+    case 'resumeAutomation': {
+      handlerResponse = await handleResumeAutomation(pathParams['hid']!, repo, requestId);
       break;
     }
     default: {

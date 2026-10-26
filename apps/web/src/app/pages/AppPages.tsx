@@ -1,12 +1,11 @@
 import { Link } from 'react-router';
-import { COMMAND_CAPABILITIES } from '@autopw3/shared';
 import { buttonClasses } from '../../components/ui/Button';
-import { ConnectionIndicator, DataTable, GlassCard } from '../../components/ui/display';
+import { DataTable, GlassCard } from '../../components/ui/display';
 import { ErrorBanner } from '../../components/ui/feedback';
-import { BoltIcon } from '../../components/ui/icons';
 import { useToast } from '../../components/ui/toast';
 import { ReadOnlyNotice, WriteButton } from '../../features/auth/permissions';
 import { Analytics } from '../../features/analytics';
+import { ControlMatrix } from '../../features/controls';
 import { TariffManager } from '../../features/tariffs';
 import { Page, PlannedFeature, useDocumentTitle } from './Page';
 
@@ -24,43 +23,7 @@ export function TariffsPage() {
 }
 
 export function ControlsPage() {
-  return (
-    <Page
-      title="Controls"
-      description="Supported Powerwall controls for this site. Every command needs confirmation, and a successful request is not proof the hardware changed."
-      status={<ConnectionIndicator state="DISCONNECTED" detail="No site connected" />}
-    >
-      <ReadOnlyNotice what="send commands" />
-      <ErrorBanner
-        tone="info"
-        title="Controls are off"
-        message="Device commands are disabled until an admin turns them on for a connected site."
-      />
-      <GlassCard title="Capability matrix">
-        <DataTable
-          caption="Capabilities"
-          captionHidden
-          rows={COMMAND_CAPABILITIES}
-          getRowKey={(row) => row}
-          columns={[
-            {
-              key: 'capability',
-              header: 'Capability',
-              render: (row) => <span className="font-mono text-xs">{row}</span>,
-            },
-            { key: 'status', header: 'Status', render: () => 'Not checked' },
-          ]}
-        />
-      </GlassCard>
-      <PlannedFeature
-        title="Commands"
-        task="17"
-        icon={BoltIcon}
-        description="Confirmed, audited commands with a visible lifecycle: pending, confirmed, failed or unknown."
-        headingLevel={2}
-      />
-    </Page>
-  );
+  return <ControlMatrix />;
 }
 
 export function AutomationPage() {

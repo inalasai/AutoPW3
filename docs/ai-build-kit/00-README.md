@@ -93,7 +93,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-16 Telemetry ingestion - live status polling and historical calendar sync separation, D-006 sign normalisation, DEMO rejection, resumable cursor backfills, per-site failure isolation, hourly (UTC) and daily (DST-aware) rollups, 90-day/30-day retention with dry-run, scheduled cron dispatcher, job & lock database migration (db:verify 100%, db:test 336 ok); PR and CI NOT_EXECUTED, see docs/handoffs/TASK-16.md
 
 **Phase 5 — Controls and operations**
-- [ ] TASK-17 Device controls
+- [x] TASK-17 Device controls - command lifecycle state machine (RECORDED → DISPATCHING → DISPATCHED → RECONCILING → DONE), read-back reconciliation (D-015), safety limits (D-003: no forced charge, no forced export, no solar bypass, no islanding), emergency automation pause toggle, ControlMatrix UI with permission gating (READ_ONLY blocked), DEVICE_CONTROL_SAFETY.md with cautious real-device test procedure; physical hardware testing UNVERIFIED / owner-manual test, PR and CI NOT_EXECUTED, see docs/handoffs/TASK-17.md
 - [ ] TASK-18 Automation engine
 - [ ] TASK-19 Administration and audit
 

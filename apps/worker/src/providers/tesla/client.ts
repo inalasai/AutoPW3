@@ -1,5 +1,5 @@
 import { normalisePowerReading } from '@autopw3/domain';
-import type { PersistedPowerSample } from '@autopw3/shared';
+import type { OperationMode, PersistedPowerSample } from '@autopw3/shared';
 import type { TeslaRawEnergyHistory, TeslaRawLiveStatus, TeslaRawSiteInfo } from './raw-types';
 
 export const DEFAULT_TESLA_API_BASE_URL = 'https://fleet-api.prd.na.vn.cloud.tesla.com';
@@ -69,6 +69,30 @@ export interface ITeslaClient {
     accessToken: string,
     params: { startDate: string; endDate: string; period?: string; timeZone?: string },
   ): Promise<TeslaRawEnergyHistory>;
+  setBackupReserve(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    percent: number,
+  ): Promise<{ response?: unknown }>;
+  setOperationMode(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    mode: OperationMode,
+  ): Promise<{ response?: unknown }>;
+  setGridImportExport(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    params: { allowGridCharging?: boolean; allowGridExport?: boolean },
+  ): Promise<{ response?: unknown }>;
+  setStormMode(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    enabled: boolean,
+  ): Promise<{ response?: unknown }>;
   normaliseLiveStatus(raw: TeslaRawLiveStatus, receivedAt: Date | string): PersistedPowerSample;
 }
 
@@ -215,6 +239,65 @@ export class TeslaClient implements ITeslaClient {
     const url = `${baseUrl}/api/1/energy_sites/${siteId}/calendar_history?${query.toString()}`;
     const data = await this.executeRequest<{ response?: TeslaRawEnergyHistory }>(url, accessToken);
     return data.response ?? {};
+  }
+
+  async setBackupReserve(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    percent: number,
+  ): Promise<{ response?: unknown }> {
+    const url = `${baseUrl}/api/1/energy_sites/${siteId}/backup`;
+    return this.executeRequest<{ response?: unknown }>(url, accessToken, {
+      method: 'POST',
+      body: JSON.stringify({ backup_reserve_percent: percent }),
+    });
+  }
+
+  async setOperationMode(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    mode: OperationMode,
+  ): Promise<{ response?: unknown }> {
+    const url = `${baseUrl}/api/1/energy_sites/${siteId}/operation`;
+    return this.executeRequest<{ response?: unknown }>(url, accessToken, {
+      method: 'POST',
+      body: JSON.stringify({ default_real_mode: mode.toLowerCase() }),
+    });
+  }
+
+  async setGridImportExport(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    params: { allowGridCharging?: boolean; allowGridExport?: boolean },
+  ): Promise<{ response?: unknown }> {
+    const url = `${baseUrl}/api/1/energy_sites/${siteId}/grid_import_export`;
+    const payload: Record<string, unknown> = {};
+    if (params.allowGridCharging !== undefined) {
+      payload['disallow_charge_from_grid_with_solar_installed'] = !params.allowGridCharging;
+    }
+    if (params.allowGridExport !== undefined) {
+      payload['customer_preferred_export_rule'] = params.allowGridExport ? 'battery_ok' : 'pv_only';
+    }
+    return this.executeRequest<{ response?: unknown }>(url, accessToken, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async setStormMode(
+    baseUrl: string,
+    siteId: string,
+    accessToken: string,
+    enabled: boolean,
+  ): Promise<{ response?: unknown }> {
+    const url = `${baseUrl}/api/1/energy_sites/${siteId}/storm_mode`;
+    return this.executeRequest<{ response?: unknown }>(url, accessToken, {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
   }
 
   /**

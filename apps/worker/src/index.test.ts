@@ -674,7 +674,7 @@ describe('Cloudflare Worker API Core', () => {
       expect(body.mode).toBe('DRY_RUN');
     });
 
-    it('returns 501 NOT_IMPLEMENTED on command submission until Task 17', async () => {
+    it('dispatches command submission with 202 Accepted in Task 17', async () => {
       const { request, rwToken, siteId } = await makeTestContext();
       const res = await request(
         `/api/v1/sites/${siteId}/commands`,
@@ -691,9 +691,10 @@ describe('Cloudflare Worker API Core', () => {
         },
         rwToken,
       );
-      expect(res.status).toBe(501);
+      expect(res.status).toBe(202);
       const body = await jsonOf(res);
-      expect(body.error.code).toBe('NOT_IMPLEMENTED');
+      expect(body.state).toBe('PENDING');
+      expect(body.id).toBeDefined();
     });
   });
 

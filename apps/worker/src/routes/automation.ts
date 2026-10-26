@@ -1,6 +1,24 @@
+import type {
+  AutomationPauseState,
+  CommandAccepted,
+  CommandRequest,
+  CreateRuleRequest,
+  UpdateRuleRequest,
+} from '@autopw3/shared';
 import type { Repository } from '../db/repository';
 import { errorResponse, jsonResponse } from '../lib/errors';
-import type { CreateRuleRequest, UpdateRuleRequest } from '@autopw3/shared';
+import type { ITeslaClient } from '../providers/tesla/client';
+import { MockTeslaClient } from '../providers/tesla/mock-adapter';
+import {
+  AutomationPausedError,
+  CapabilityNotSupportedError,
+  ConflictError,
+  SafetyLimitError,
+  executeDeviceCommand,
+} from '../services/commands/executor';
+import type { TokenStore } from '../services/tokens/store';
+
+const fallbackTeslaClient = new MockTeslaClient();
 
 export async function handleListRules(
   siteId: string,
@@ -66,20 +84,59 @@ export async function handleUpdateRule(
 
 export async function handleCreateCommand(
   siteId: string,
+  body: CommandRequest,
+  idempotencyKey: string,
+  callerUserId: string | null,
   repo: Repository,
   requestId: string,
+  tokenStore?: TokenStore,
+  teslaClient?: ITeslaClient,
 ): Promise<Response> {
   const site = await repo.getSite(siteId);
   if (!site) {
     return errorResponse('NOT_FOUND', 'Site not found', requestId);
   }
 
-  // Per contract section 2.6 and TASK-14: Command submission stub returns 501 NOT_IMPLEMENTED until Task 17
-  return errorResponse(
-    'NOT_IMPLEMENTED',
-    'Device command dispatch will be implemented in Task 17',
-    requestId,
-  );
+  try {
+    const result = await executeDeviceCommand(
+      siteId,
+      body,
+      {
+        origin: 'USER',
+        actorUserId: callerUserId,
+        idempotencyKey,
+      },
+      {
+        repo,
+        teslaClient: teslaClient ?? fallbackTeslaClient,
+        tokenStore,
+      },
+    );
+
+    const accepted: CommandAccepted = {
+      id: result.command.id,
+      state: 'PENDING',
+      phase: result.command.phase,
+    };
+
+    // 202 Accepted on intent creation / dispatch
+    return jsonResponse(accepted, 202, requestId);
+  } catch (err) {
+    if (err instanceof ConflictError) {
+      return errorResponse('CONFLICT', err.message, requestId);
+    }
+    if (err instanceof CapabilityNotSupportedError) {
+      return errorResponse('VALIDATION_FAILED', err.message, requestId);
+    }
+    if (err instanceof SafetyLimitError) {
+      return errorResponse('VALIDATION_FAILED', err.message, requestId);
+    }
+    if (err instanceof AutomationPausedError) {
+      return errorResponse('FORBIDDEN', err.message, requestId);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return errorResponse('INTERNAL', message, requestId);
+  }
 }
 
 export async function handleListCommands(
@@ -95,4 +152,34 @@ export async function handleListCommands(
   const limit = Math.min(Math.max(1, query.limit ?? 50), 200);
   const result = await repo.listCommands(siteId, limit, query.cursor);
   return jsonResponse(result, 200, requestId);
+}
+
+export async function handleGetCommand(
+  commandId: string,
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  const detail = await repo.getCommandById(commandId);
+  if (!detail) {
+    return errorResponse('NOT_FOUND', 'Command not found', requestId);
+  }
+  return jsonResponse(detail, 200, requestId);
+}
+
+export async function handlePauseAutomation(
+  householdId: string,
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  const state: AutomationPauseState = await repo.setAutomationPaused(householdId, true);
+  return jsonResponse(state, 200, requestId);
+}
+
+export async function handleResumeAutomation(
+  householdId: string,
+  repo: Repository,
+  requestId: string,
+): Promise<Response> {
+  const state: AutomationPauseState = await repo.setAutomationPaused(householdId, false);
+  return jsonResponse(state, 200, requestId);
 }

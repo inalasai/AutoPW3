@@ -1,5 +1,6 @@
 import type {
   AutomationRule,
+  CommandEvent,
   CreateRuleRequest,
   CreateSiteRequest,
   CreateTariffRequest,
@@ -14,6 +15,7 @@ import type {
   TeslaLinkStatus,
   UpdateRuleRequest,
 } from '@autopw3/shared';
+import type { SiteConfiguration, StoredCommandRecord } from '../services/commands/types';
 import type { TelemetrySyncState } from '../services/ingestion/types';
 
 export interface MemberItem {
@@ -138,16 +140,44 @@ export interface Repository {
     cursor?: string,
   ): Promise<{ items: readonly AutomationRule[]; nextCursor: string | null }>;
   getHouseholdIdForRule(ruleId: string): Promise<string | null>;
+  getHouseholdIdForCommand(commandId: string): Promise<string | null>;
   createRule(siteId: string, rule: CreateRuleRequest): Promise<AutomationRule>;
   updateRule(
     ruleId: string,
     rule: UpdateRuleRequest,
   ): Promise<{ rule?: AutomationRule; error?: 'NOT_FOUND' | 'VERSION_MISMATCH' }>;
+  getAutomationPaused(householdId: string): Promise<boolean>;
+  setAutomationPaused(
+    householdId: string,
+    paused: boolean,
+  ): Promise<{ automationPaused: boolean; pausedAt: string | null }>;
+  getSiteConfiguration(siteId: string): Promise<SiteConfiguration | null>;
+  updateSiteConfiguration(
+    siteId: string,
+    updates: Partial<SiteConfiguration>,
+  ): Promise<SiteConfiguration>;
+  recordCommandIntent(
+    command: StoredCommandRecord,
+  ): Promise<{ command: StoredCommandRecord; replayed: boolean }>;
+  getCommand(siteId: string, commandId: string): Promise<StoredCommandRecord | null>;
+  getCommandById(
+    commandId: string,
+  ): Promise<{ command: StoredCommandRecord; events: readonly CommandEvent[] } | null>;
+  getCommandWithEvents(
+    siteId: string,
+    commandId: string,
+  ): Promise<{ command: StoredCommandRecord; events: readonly CommandEvent[] } | null>;
+  updateCommand(
+    siteId: string,
+    commandId: string,
+    updates: Partial<StoredCommandRecord>,
+  ): Promise<StoredCommandRecord>;
+  recordCommandEvent(commandId: string, event: CommandEvent): Promise<void>;
   listCommands(
     siteId: string,
     limit: number,
     cursor?: string,
-  ): Promise<{ items: readonly CommandItem[]; nextCursor: string | null }>;
+  ): Promise<{ items: readonly StoredCommandRecord[]; nextCursor: string | null }>;
   recordPowerSample(siteId: string, sample: PersistedPowerSample): Promise<void>;
   getLatestPowerSample(siteId: string): Promise<PersistedPowerSample | null>;
   queryPowerSamples(
@@ -203,8 +233,14 @@ export class InMemoryRepository implements Repository {
   private readonly tariffHouseholdMap = new Map<string, string>();
   private readonly rules = new Map<string, AutomationRule>();
   private readonly ruleSiteMap = new Map<string, string>();
-  private readonly commands = new Map<string, CommandItem>();
+  private readonly commands = new Map<string, StoredCommandRecord>();
+  private readonly commandEvents = new Map<string, CommandEvent[]>();
   private readonly teslaLinks = new Map<string, TeslaLinkStatus>();
+  private readonly siteConfigurations = new Map<string, SiteConfiguration>();
+  private readonly householdAutomationPaused = new Map<
+    string,
+    { paused: boolean; pausedAt: string | null }
+  >();
   private readonly powerSamples = new Map<string, PersistedPowerSample[]>();
   private readonly intervals = new Map<string, Map<string, EnergyInterval>>();
   private readonly hourly = new Map<string, Map<string, EnergySeriesPoint>>();
@@ -330,6 +366,16 @@ export class InMemoryRepository implements Repository {
       updatedAt: '2026-01-05T00:00:00Z',
     });
     this.ruleSiteMap.set(r1Id, sid);
+
+    this.siteConfigurations.set(sid, {
+      backupReservePercent: 20,
+      operationMode: 'SELF_CONSUMPTION',
+      stormModeCapable: true,
+      stormModeEnabled: false,
+      allowGridCharging: true,
+      allowGridExport: true,
+      lastUpdated: '2026-06-21T12:00:00Z',
+    });
   }
 
   async getHouseholdMemberships(
@@ -550,9 +596,10 @@ export class InMemoryRepository implements Repository {
 
   async getSettings(householdId: string): Promise<HouseholdSettingsView | null> {
     if (!this.households.has(householdId)) return null;
+    const pauseInfo = this.householdAutomationPaused.get(householdId);
     return {
       staleAfterSeconds: 300,
-      automationPaused: false,
+      automationPaused: pauseInfo?.paused ?? false,
       controlsEnabled: true,
       budget: {
         spentUsd: '0.00',
@@ -790,6 +837,12 @@ export class InMemoryRepository implements Repository {
     return this.siteHouseholdMap.get(sid) ?? null;
   }
 
+  async getHouseholdIdForCommand(commandId: string): Promise<string | null> {
+    const cmd = this.commands.get(commandId);
+    if (!cmd) return null;
+    return cmd.householdId;
+  }
+
   async createRule(siteId: string, rule: CreateRuleRequest): Promise<AutomationRule> {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -833,12 +886,125 @@ export class InMemoryRepository implements Repository {
     return { rule: updated };
   }
 
+  async getAutomationPaused(householdId: string): Promise<boolean> {
+    return this.householdAutomationPaused.get(householdId)?.paused ?? false;
+  }
+
+  async setAutomationPaused(
+    householdId: string,
+    paused: boolean,
+  ): Promise<{ automationPaused: boolean; pausedAt: string | null }> {
+    const pausedAt = paused ? new Date().toISOString() : null;
+    this.householdAutomationPaused.set(householdId, { paused, pausedAt });
+    return { automationPaused: paused, pausedAt };
+  }
+
+  async getSiteConfiguration(siteId: string): Promise<SiteConfiguration | null> {
+    return this.siteConfigurations.get(siteId) ?? null;
+  }
+
+  async updateSiteConfiguration(
+    siteId: string,
+    updates: Partial<SiteConfiguration>,
+  ): Promise<SiteConfiguration> {
+    const existing = this.siteConfigurations.get(siteId) ?? {
+      backupReservePercent: 20,
+      operationMode: 'SELF_CONSUMPTION',
+      stormModeCapable: true,
+      stormModeEnabled: false,
+      allowGridCharging: true,
+      allowGridExport: true,
+      lastUpdated: new Date().toISOString(),
+    };
+    const updated: SiteConfiguration = {
+      ...existing,
+      ...updates,
+      lastUpdated: new Date().toISOString(),
+    };
+    this.siteConfigurations.set(siteId, updated);
+    return updated;
+  }
+
+  async recordCommandIntent(
+    command: StoredCommandRecord,
+  ): Promise<{ command: StoredCommandRecord; replayed: boolean }> {
+    const existing = Array.from(this.commands.values()).find(
+      (c) => c.siteId === command.siteId && c.idempotencyKey === command.idempotencyKey,
+    );
+    if (existing) {
+      if (existing.paramsHash !== command.paramsHash) {
+        throw new Error('Idempotency key replayed with mismatched parameters');
+      }
+      return { command: existing, replayed: true };
+    }
+
+    this.commands.set(command.id, command);
+    return { command, replayed: false };
+  }
+
+  async getCommand(siteId: string, commandId: string): Promise<StoredCommandRecord | null> {
+    const cmd = this.commands.get(commandId);
+    if (!cmd || cmd.siteId !== siteId) return null;
+    return cmd;
+  }
+
+  async getCommandById(
+    commandId: string,
+  ): Promise<{ command: StoredCommandRecord; events: readonly CommandEvent[] } | null> {
+    const cmd = this.commands.get(commandId);
+    if (!cmd) return null;
+    const events = this.commandEvents.get(commandId) ?? [];
+    return { command: cmd, events };
+  }
+
+  async getCommandWithEvents(
+    siteId: string,
+    commandId: string,
+  ): Promise<{ command: StoredCommandRecord; events: readonly CommandEvent[] } | null> {
+    const cmd = await this.getCommand(siteId, commandId);
+    if (!cmd) return null;
+    const events = this.commandEvents.get(commandId) ?? [];
+    return { command: cmd, events };
+  }
+
+  async updateCommand(
+    siteId: string,
+    commandId: string,
+    updates: Partial<StoredCommandRecord>,
+  ): Promise<StoredCommandRecord> {
+    const existing = await this.getCommand(siteId, commandId);
+    if (!existing) {
+      throw new Error(`Command ${commandId} not found`);
+    }
+    const updated = {
+      ...existing,
+      ...updates,
+      outcome: {
+        ...existing.outcome,
+        ...(updates.outcome ?? {}),
+        physicalOutcomeGuaranteed: false as const,
+      },
+    } as unknown as StoredCommandRecord;
+    this.commands.set(commandId, updated);
+    return updated;
+  }
+
+  async recordCommandEvent(commandId: string, event: CommandEvent): Promise<void> {
+    let list = this.commandEvents.get(commandId);
+    if (!list) {
+      list = [];
+      this.commandEvents.set(commandId, list);
+    }
+    list.push(event);
+  }
+
   async listCommands(
     siteId: string,
     limit: number,
     cursor?: string,
-  ): Promise<{ items: readonly CommandItem[]; nextCursor: string | null }> {
+  ): Promise<{ items: readonly StoredCommandRecord[]; nextCursor: string | null }> {
     let all = Array.from(this.commands.values()).filter((c) => c.siteId === siteId);
+    all.sort((a, b) => Date.parse(b.requestedAt) - Date.parse(a.requestedAt));
     if (cursor) {
       const idx = all.findIndex((c) => c.id === cursor);
       if (idx >= 0) all = all.slice(idx + 1);

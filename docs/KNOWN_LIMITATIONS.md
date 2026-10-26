@@ -113,4 +113,7 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-107 | Telemetry | Tesla Fleet API `calendar_history` native interval resolution defaults to 15-minute or daily buckets; finer 5-minute granularities are subject to regional Fleet API tier capabilities | UNVERIFIED | TASK-16 |
 | L-108 | Ingestion | Scheduled cron execution in local development runs through manual trigger or Vitest scheduled dispatcher; production Cloudflare Workers Cron Trigger activates upon deployment | VERIFIED | TASK-16 |
 | L-109 | Process | TASK-16 was implemented on branch `Sai-AutoPW3`. Commits follow `task-16: <what>` | VERIFIED | TASK-16 |
+| L-110 | Commands | `off_grid_vehicle_charging_reserve` and `time_of_use_settings` remain `UNVERIFIED` until hardware verification; controls are disabled in the UI and rejected by the backend | UNVERIFIED | TASK-17 |
+| L-111 | Process | TASK-17 was implemented on branch `Sai-AutoPW3`. Commits follow `task-17: <what>` | VERIFIED | TASK-17 |
+
 
