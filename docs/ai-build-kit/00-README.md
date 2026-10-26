@@ -83,7 +83,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-08 Telemetry model and demo provider - `TelemetryProvider` interface, normaliser, data-quality utilities, demo/live guard, seeded demo day/week/month and scenarios; thresholds `UNVERIFIED`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-08.md`
 - [x] TASK-09 Animated Live View - pure flow model, canvas renderer with animation loop and cleanup, battery gauge, status bar, accessible text summary, provider chosen by `VITE_TELEMETRY_PROVIDER`; thresholds `UNVERIFIED`, real devices, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-09.md`
 - [x] TASK-10 Tariff engine - rate resolution with deterministic precedence, DST-correct interval splitting and pricing, VAT/levies/standing charge in decimal, validators, example fixtures, property tests; negative prices engine-only, all tariff values `ILLUSTRATIVE EXAMPLE`, PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-10.md`
-- [ ] TASK-11 Accounting engine
+- [x] TASK-11 Accounting engine - power-to-energy integration, energy totals, independent import/export costing, standing charges, VAT, efficiency metrics, counterfactual savings analysis, golden fixtures verified; PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-11.md`
 - [ ] TASK-12 Tariff manager UI
 - [ ] TASK-13 Analytics UI
 

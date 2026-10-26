@@ -481,3 +481,28 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Proposed, approved by the owner at the TASK-10 plan
 - **Decision:** `@vitest/coverage-v8` 5.0.5 (same version as Vitest) for the honest coverage report, and `fast-check` 4.10.2 for the property-based tests. Both are devDependencies of `@autopw3/domain` only; neither ships in a bundle.
 - **Rationale:** Required by the task (coverage report, property-based tests).
+
+## D-082 Left-Riemann step integration for power-to-energy conversion (TASK-11)
+- **Status:** Proposed
+- **Decision:** When provider-reported energy intervals are absent, power snapshots are integrated via step (hold-last) left-Riemann integration ($Wh = W \times \Delta t / 3600$). Spans exceeding `maxGapSeconds` (default 3600 s) are left uncovered and never interpolated. Derived intervals are stamped with `quality: 'DERIVED'`.
+- **Rationale:** ENERGY_ACCOUNTING §4; rule 9 (never fabricate finer data).
+
+## D-083 Runtime and type-level source isolation for accounting (TASK-11)
+- **Status:** Proposed
+- **Decision:** `accountForPeriod` defaults to `context: 'LIVE'`. Passing synthetic `DEMO` telemetry in a live context throws `DemoDataInLivePathError`. Demo accounting is supported only when explicitly requested (`context: 'DEMO'`). `SUSPECT` intervals are excluded from totals and tracked against data completeness.
+- **Rationale:** Rule 5; D-017 (demo data can never reach live accounting).
+
+## D-084 Independent calculation of import charges and export revenue (TASK-11)
+- **Status:** Proposed
+- **Decision:** Import energy charges and export revenues are computed independently. Standing charges and daily levies are assessed per local calendar day ($[00:00, 24:00)$ in the site timezone). A 23-hour or 25-hour DST day incurs 1 day of standing charges. Net cost equals import energy + standing charges + import levies + VAT - export revenue.
+- **Rationale:** Energy accounting requirements; export credit must not distort or obscure import cost bases.
+
+## D-085 Displayed net cost is the sum of rounded component lines (TASK-11)
+- **Status:** Proposed
+- **Decision:** Intermediate calculations use arbitrary-precision Decimal arithmetic (28 significant digits). Presentation amounts are rounded half-up to minor units per component line (import energy, standing charges, VAT, export credit). Displayed net is the sum/difference of the rounded component lines, ensuring invoice displays add up on screen.
+- **Rationale:** D-014; ENERGY_ACCOUNTING §7; prevents cent mismatches in display presentations.
+
+## D-086 Efficiency metrics and counterfactual savings model (TASK-11)
+- **Status:** Proposed
+- **Decision:** Implements self-consumption %, self-sufficiency %, and battery round-trip losses ($\max(0, \text{charged} - \text{discharged})$). Counterfactual savings ("no solar, no battery") models 100% of home consumption imported at active tariff rates plus standing charges, always labelled `ESTIMATE`. Documented in `docs/FINANCIAL_MODEL.md`.
+- **Rationale:** Task 11 requirements; ENERGY_ACCOUNTING §6.
