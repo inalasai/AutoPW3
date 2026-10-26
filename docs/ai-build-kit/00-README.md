@@ -88,7 +88,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 - [x] TASK-13 Analytics UI - historical energy and cost charts (Recharts), summary cards, counterfactual savings ("no solar, no battery"), resolution mapping, telemetry completeness and gap disclosure, accessible data table alternatives, CSV export with formula injection protection, Playwright smoke tests; PR and CI `NOT_EXECUTED`, see `docs/handoffs/TASK-13.md`
 
 **Phase 4 — Backend and Tesla**
-- [ ] TASK-14 Worker API core
+- [x] TASK-14 Worker API core - 12-stage middleware pipeline, asymmetric JWT verification (RS256/ES256), Zod validation, sliding-window rate limiting, idempotency key replay with secret redaction, authoritative DB role enforcement (404 on cross-household), typed route handlers, API_OPERATIONS.md; see docs/handoffs/TASK-14.md
 - [ ] TASK-15 Tesla adapter and OAuth
 - [ ] TASK-16 Telemetry ingestion
 

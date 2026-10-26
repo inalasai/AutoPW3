@@ -1,6 +1,6 @@
 # apps/worker — Cloudflare Worker
 
-**Status:** skeleton only (TASK-02; error envelope uses `@autopw3/shared` since TASK-05): `src/index.ts` serves `GET /api/v1/health`, a JSON 404 for other `/api/*` paths and the built web app as static assets; `scheduled` is a no-op. Config is `wrangler.jsonc` (single Worker, D-021). Authentication and the real API arrive in TASK-14.
+**Status:** API Core implemented in TASK-14. 12-stage deterministic middleware pipeline: CORS allowlist, request size guard (64 KiB), route matching, asymmetric JWT verification (RS256/ES256), Zod schema validations, Idempotency-Key guard (with D-036 secret redaction on replay), sliding-window rate limiting, authoritative database role enforcement (404 on cross-household), typed route handlers (`/me`, `/households`, `/members`, `/invitations`, `/settings`, `/sites`, `/capabilities`, `/live`, `/demo`, `/tariffs`, `/automation/rules`, `/commands` stub). Tests: 36 vitest unit/integration tests passing.
 
 ## Purpose
 The trusted backend: authenticated API, Tesla adapter, token handling, telemetry ingestion, device commands and scheduled automation. Enforces authorisation independently of the front end.

@@ -104,3 +104,6 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-098 | Process | TASK-12 was implemented on branch `Sai-AutoPW3`. Commits follow `task-12: <what>` | VERIFIED | TASK-12 |
 | L-099 | Analytics | Analytics UI in demo mode runs over synthetic telemetry (`createDemoTelemetryProvider` / `demoEnergyIntervals`) and `InMemoryTariffRepository`. Server-side rollup jobs and Worker API endpoints are implemented in TASK-14 and TASK-16 | VERIFIED | TASK-13 |
 | L-100 | Process | TASK-13 was implemented on branch `Sai-AutoPW3`. Commits follow `task-13: <what>` | VERIFIED | TASK-13 |
+| L-101 | Commands | `POST /api/v1/sites/{siteId}/commands` returns 501 `NOT_IMPLEMENTED` by design until Task 17 (Device Controls) implements hardware payload signing and dispatch | MOCK_ONLY | TASK-14 |
+| L-102 | Backend | Worker API currently runs with `InMemoryRepository` in test and demo environments; live Supabase PostgREST client binding is activated in live deployment | VERIFIED | TASK-14 |
+| L-103 | Process | TASK-14 was implemented on branch `Sai-AutoPW3`. Commits follow `task-14: <what>` | VERIFIED | TASK-14 |

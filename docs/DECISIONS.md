@@ -542,4 +542,19 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** All CSV fields are sanitized against formula injection: strings starting with `=`, `+`, `-`, `@`, `\t`, or `\r` have a prepended single quote (`'`). Headers explicitly declare physical and financial units (`kWh`, `EUR`), and numeric figures are formatted as explicit decimal strings.
 - **Rationale:** OWASP CSV Injection prevention; ensuring exported data cannot execute untrusted commands in spreadsheet software (Excel, Google Sheets, Calc).
 
+## D-094 Asymmetric Supabase JWT verification via jose JWKS (TASK-14)
+- **Status:** Proposed
+- **Decision:** Authenticated requests to the Cloudflare Worker are verified asymmetrically using `jose.jwtVerify` against the Supabase JWKS endpoint (`<SUPABASE_URL>/auth/v1/.well-known/jwks.json`) with an algorithm allowlist restricted to `RS256`, `ES256`, and `EdDSA`. Symmetric `HS256` tokens are strictly refused per D-009 to protect against key confusion and secret leakage. The JWKS key set is cached in memory for 10 minutes to minimize network roundtrips. Claims for expiration (`exp`), issuer (`iss`), subject (`sub`), and role (`authenticated`) are authoritatively validated.
+- **Rationale:** AGENTS.md, D-009, and TASK-14 stop conditions: asymmetric token verification prevents Worker from needing the master Supabase JWT secret; strict algorithm gating prevents algorithm-downgrade attacks.
+
+## D-095 Deterministic 12-stage middleware pipeline (TASK-14)
+- **Status:** Proposed
+- **Decision:** All incoming HTTP requests to the Worker pass through an invariant 12-stage pipeline: (1) CORS preflight / origin allowlist verification, (2) static asset delegation for non-API routes, (3) route matching & method check, (4) 64 KiB request body size guard, (5) JWT asymmetric verification, (6) Zod path parameter validation, (7) Zod query parameter validation, (8) Zod request body validation, (9) Idempotency-Key validation and cached response replay with D-036 invitation secret redaction, (10) sliding-window rate limiting (120 general, 30 mutating, 10 token/invitations, 60 public), (11) authoritative database membership and role authorization (returning 404 for cross-household isolation and 403 for insufficient role), (12) dispatch to typed route handler.
+- **Rationale:** Guarantees uniform security semantics, input validation, and early rejection across all API routes before hitting database or stateful compute.
+
+## D-096 Authoritative database-level role resolution and S1–S9 service register (TASK-14)
+- **Status:** Proposed
+- **Decision:** The API never trusts client-supplied role or household claims in the JWT or headers. The caller's role is queried authoritatively from `household_members`. Ordinary user queries and mutations execute with user-scoped credentials so PostgreSQL Row-Level Security (RLS) policies apply. Privileged `service_role` access is strictly isolated and documented in `docs/API_OPERATIONS.md` under an explicit register (S1 through S9).
+- **Rationale:** Core project rule 1 (roles per household membership; backend and database authoritative); SECURITY_MODEL §4; prevents privilege escalation if frontend or local state is manipulated.
+
 
