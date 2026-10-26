@@ -121,5 +121,7 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-115 | Process | TASK-19 was implemented on branch `Sai-AutoPW3`. Commits follow `task-19: <what>` | VERIFIED | TASK-19 |
 | L-116 | Security | Undici advisory GHSA-4qv8-2p9j-2685 is present in wrangler/miniflare devDependencies; it does not affect production web or worker edge bundles | VERIFIED | TASK-20 |
 | L-117 | Process | TASK-20 was implemented on branch `Sai-AutoPW3`. Commits follow `task-20: <what>` | VERIFIED | TASK-20 |
+| L-118 | Deployment | Automated live deployment to production Cloudflare and Supabase environments requires owner vendor credentials; local emulation and dry-run bundles are fully verified | AWAITING_CREDENTIALS | TASK-21 |
+| L-119 | Process | TASK-21 was implemented on branch `Sai-AutoPW3`. Commits follow `task-21: <what>` | VERIFIED | TASK-21 |
 
 

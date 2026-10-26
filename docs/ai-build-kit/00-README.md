@@ -99,7 +99,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 
 **Phase 6 — Release**
 - [x] TASK-20 Security audit and end-to-end tests - independent security audit (0 open critical/high findings), Endpoint × Role matrix, universal RLS and pgTAP security verification (336 assertions passed), Secretlint (0 secrets), CSV formula injection defense, all 38 Playwright E2E tests passed, SECURITY_AUDIT.md, TEST_REPORT.md, VERIFICATION_REGISTER.md; PR and CI NOT_EXECUTED, see docs/handoffs/TASK-20.md
-- [ ] TASK-21 Deployment and release
+- [x] TASK-21 Deployment and release - production deployment runbook (Supabase, Cloudflare Workers, Tesla Developer Portal), disaster recovery guide & backup policy, operational security checklist, release checklist with first-run owner guide, CI/CD deploy workflow, root README.md; live deployment AWAITING_CREDENTIALS, see docs/handoffs/TASK-21.md
 
 ## Tasks that must stay separate
 

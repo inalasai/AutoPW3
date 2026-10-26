@@ -1,57 +1,124 @@
 # AutoPW3
 
-Subscription-free residential energy management for Tesla Powerwall sites: live energy-flow view, tariff-aware analytics, supported device controls and safe automation.
+**Subscription-free residential energy management for Tesla Powerwall sites.**  
+Live energy-flow visualization, tariff-aware analytics, supported device controls, safe automation, and household administration.
 
-> **Status: pre-alpha, skeleton.** The toolchain and an empty application shell exist (TASK-02); no product features yet. The project is built in small, verifiable tasks driven by the [AI build kit](docs/ai-build-kit/00-README.md). Progress is tracked there.
+---
 
-## Planned features
-- Animated live view of solar, battery, home and grid power.
-- Historical analytics with import cost, export revenue and savings, using real tariff rules (day/night, weekday/weekend, seasonal, dynamic, VAT, standing charge).
-- Tariff manager with validation, versioning and DST-correct schedules.
-- Device controls limited to operations the Tesla Fleet API documents and the site supports.
-- Tariff-aware automation that defaults to dry-run.
-- Household roles (`READ_ONLY`, `READ_WRITE`, `ADMIN`), invitations and full audit log.
+## Overview
 
-## Tech stack
-React, TypeScript, Vite, Tailwind CSS · Cloudflare Workers · Supabase (Auth, PostgreSQL, Row Level Security) · Tesla Fleet API · Recharts · HTML5 Canvas · Vitest, React Testing Library, Playwright, pgTAP.
+AutoPW3 is a modern, privacy-first web application designed for Tesla Powerwall owners who want complete visibility and safe control over their home energy system without ongoing subscription fees or cloud lock-in.
 
-## Repository map
+### Key Capabilities
+- **Animated Live Energy Flow:** High-performance 60 FPS HTML5 Canvas animation loop showing real-time solar generation, home consumption, battery state-of-charge, and grid import/export flows with particle physics and accessible screen-reader summaries.
+- **Tariff Engine & Versioning:** True interval-cost accounting supporting time-of-use (TOU) rates, weekend/weekday pricing, seasonal variations, exact decimal currency math (`NoFloatMoney`), and DST-correct schedules.
+- **Tariff-Aware Analytics:** Historical energy and cost charts (Recharts), financial savings breakdown, counterfactual metrics ("what would this cost without solar/battery?"), and formula-injection-safe CSV exports.
+- **Safe Hardware Controls:** Intent-logged command state machine with read-back reconciliation. Adheres strictly to physical safety limits: unsupported operations (forced charging, forced export, solar bypass, manual islanding) are rejected at the schema level.
+- **Dry-Run Automation Engine:** Scheduled rule engine that defaults to `DRY_RUN` mode, evaluating real condition states (time windows, battery SOC, import rate thresholds) and recording simulated outcomes (`WOULD_ACT`) without dispatching commands to physical hardware.
+- **Household Administration & RBAC:** Authoritative monotonic role hierarchy (`READ_ONLY` < `READ_WRITE` < `ADMIN`), cross-household tenant isolation (404 rejection), cryptographic member invitations (zero SMTP dependency), and last-admin protection.
+- **Compliance & Privacy Operations:** Immutable audit trail, automated telemetry retention purges, GDPR Article 20 data portability (portable JSON exports for households and accounts), and GDPR Article 17 Right to Erasure workflows.
 
-| Path | Purpose | Details |
-|---|---|---|
-| [`apps/web`](apps/web/README.md) | React front end | UI, routing, feature modules |
-| [`apps/worker`](apps/worker/README.md) | Cloudflare Worker | API, Tesla adapter, ingestion, automation |
-| [`packages/shared`](packages/shared/README.md) | Types and Zod schemas | One source of truth, no logic |
-| [`packages/domain`](packages/domain/README.md) | Pure energy logic | Telemetry, tariff engine, accounting |
-| [`supabase`](supabase/README.md) | Database | Migrations, RLS, SQL tests, seed |
-| [`e2e`](e2e/README.md) | End-to-end tests | Playwright |
-| [`scripts`](scripts/README.md) | Helper scripts | Dev and ops |
-| [`docs`](docs/README.md) | Documentation | Design, operations, handoffs |
-| [`docs/ai-build-kit`](docs/ai-build-kit/00-README.md) | Build instructions | 22 phased tasks |
+---
 
-## Getting started
-Requires Node.js 22 or newer. Details: [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md).
+## Tech Stack
 
-```bash
-npm install
-npm run typecheck && npm run lint && npm test && npm run build
-npm run dev           # web app in demo mode, no credentials needed
-npm run dev:worker    # Worker on http://localhost:8787 (run the web build first)
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, Lucide icons, Recharts, HTML5 Canvas.
+- **Edge Backend:** Cloudflare Workers (Static Assets + API + periodic Cron Triggers).
+- **Database & Auth:** Supabase (PostgreSQL 17 with universal Row-Level Security, Supabase Auth).
+- **Domain Engine:** Pure TypeScript domain models (`@autopw3/domain`) with zero external network or clock side-effects.
+- **Testing & Verification:** Vitest, React Testing Library, Playwright, pgTAP SQL tests, Secretlint, ESLint, Prettier.
+
+---
+
+## Repository Map
+
+```
+autopw3/
+├── apps/
+│   ├── web/             # React front end (UI, routing, feature modules)
+│   └── worker/          # Cloudflare Worker API, Tesla adapter, ingestion, automation
+├── packages/
+│   ├── shared/          # Unified Zod schemas, route contracts, database types
+│   └── domain/          # Pure energy domain (telemetry, tariff engine, accounting math)
+├── supabase/
+│   ├── migrations/      # 12 versioned migrations (schema, RLS, functions, constraints)
+│   └── tests/database/  # 11 pgTAP SQL security and isolation test suites
+├── e2e/                 # Playwright end-to-end smoke tests (desktop & mobile-360)
+└── docs/                # Architecture, runbooks, security audits, and handoff reports
 ```
 
-The app is designed to run locally in **demo mode** with synthetic, clearly labelled data and no Tesla or production database credentials.
+---
 
-## Configuration and credentials
-Copy `.env.example` to `.env.local` (web) and `apps/worker/.dev.vars` (Worker) and fill in values. **Never commit real credentials.** Full guidance, including where every secret lives in production: [docs/CREDENTIALS.md](docs/CREDENTIALS.md).
+## Quickstart (Local Demo Mode)
 
-## Testing
-Unit, component, API, database security and end-to-end tests, with mocks before any real hardware. See [docs/TESTING.md](docs/TESTING.md).
+AutoPW3 runs out of the box in **Demo Mode** with realistic, synthetic energy telemetry and mock authentication—**zero credentials or external accounts required**.
 
-## Contributing and workflow
-One task per branch (`task-NN-<slug>`), pull request with the template, handoff report per task. See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for AI agents.
+### Prerequisites
+- Node.js 22 or newer
+- npm 10 or newer
 
-## Security
-Report vulnerabilities privately; see [SECURITY.md](SECURITY.md). Design: roles per household, RLS everywhere, Tesla tokens encrypted server-side, demo data isolated from live data.
+### Installation & Launch
+```bash
+# 1. Clone repository and install dependencies
+git clone https://github.com/inalasai/AutoPW3.git
+cd AutoPW3
+npm install
+
+# 2. Run test and validation pipeline
+npm run check
+
+# 3. Start local development server (demo mode)
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+## Commands & Scripts
+
+```bash
+npm run typecheck      # TypeScript strict check across all workspaces & e2e
+npm run lint           # ESLint, architectural boundary checks, Prettier
+npm test               # Run all 678 Vitest unit and integration tests
+npm run build          # Production build for web client and Cloudflare Worker
+npm run secrets:scan   # Secretlint scan across all repository files
+npm run db:verify      # Verify all 12 migrations and constraints on PostgreSQL 17
+npm run db:test        # Run all 336 pgTAP SQL security tests on PostgreSQL 17
+npm run db:types       # Verify database TypeScript types drift
+npm run check          # Run the full validation pipeline above
+npm run test:e2e       # Run Playwright E2E smoke tests (desktop & mobile)
+npm run dev            # Start web application in demo mode
+npm run dev:worker     # Start Cloudflare Worker locally via Wrangler
+```
+
+---
+
+## Production Deployment & Operational Guides
+
+For setting up a live instance with your own Supabase project and Tesla Developer credentials, consult the operational runbooks:
+
+- 📖 **[Deployment Runbook](docs/DEPLOYMENT_RUNBOOK.md):** Step-by-step ordered setup for Supabase, Cloudflare Workers, and Tesla OAuth.
+- 📋 **[Release Checklist](docs/RELEASE_CHECKLIST.md):** Release verification matrix and owner's first-run guide.
+- 🔒 **[Security Audit Report](docs/SECURITY_AUDIT.md):** Defense-in-depth review, threat model, and Endpoint × Role matrix.
+- 🧪 **[Test & Verification Report](docs/TEST_REPORT.md):** Complete test execution logs and verification evidence.
+- 🛡️ **[Operational Security Checklist](docs/SECURITY_CHECKLIST.md):** Credential management, key rotation schedules, and audit cadence.
+- 🚨 **[Disaster Recovery & Backup Guide](docs/RECOVERY_GUIDE.md):** Database backup policy, restore drills, key rotation, and rollback runbooks.
+- 📊 **[Verification Register](docs/VERIFICATION_REGISTER.md):** Detailed feature verification status register.
+
+---
+
+## Security & Privacy by Design
+
+AutoPW3 adheres to strict non-negotiable security principles:
+1. **Zero Secret Leakage:** Tesla access/refresh tokens are encrypted at rest using AES-256-GCM and never leave the server.
+2. **Authoritative Role Control:** The browser is never trusted. Every mutation is authorized by database row-level security per household.
+3. **Hardware Safety Invariant:** Automated rules default to dry-run. Destructive or unverified operations (forced charging, forced export, islanding) are prohibited.
+4. **GDPR Ready:** Built-in self-service tools for Article 20 data export and Article 17 account/household erasure with last-admin protection.
+
+To report security issues, review [SECURITY.md](SECURITY.md).
+
+---
 
 ## License
-No license has been chosen yet. Until the owner adds one, all rights are reserved.
+
+All rights reserved until a public license is designated by the project owner.
