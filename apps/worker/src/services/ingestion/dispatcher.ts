@@ -1,7 +1,9 @@
 import type { Clock } from '@autopw3/domain';
 import type { Repository } from '../../db/repository';
 import type { ITeslaClient } from '../../providers/tesla/client';
-import { type TokenStore, isTokenExpiredOrExpiring } from '../tokens/store';
+import { refreshAccessToken } from '../../providers/tesla/oauth';
+import { runAutomationForSite } from '../automation/runner';
+import { isTokenExpiredOrExpiring, type TokenStore } from '../tokens/store';
 import { syncHistoricalIntervalsForSite } from './historical-sync';
 import { fetchAndPersistLiveStatus } from './live-fetcher';
 import { runRetentionJob } from './retention';
@@ -11,10 +13,15 @@ export interface IngestionDispatcherDependencies {
   readonly repo: Repository;
   readonly tokenStore: TokenStore;
   readonly teslaClient: ITeslaClient;
-  readonly clock?: Clock;
+  readonly clock?: Clock | undefined;
+  readonly teslaAuth?:
+    | {
+        readonly clientId: string;
+        readonly clientSecret: string;
+      }
+    | undefined;
+  readonly fetcher?: typeof fetch | undefined;
 }
-
-import { runAutomationForSite } from '../automation/runner';
 
 export interface DispatcherReport {
   readonly timestamp: string;
@@ -32,7 +39,13 @@ export async function dispatchScheduledCronJobs(
   const now = clock.now();
   const errors: { siteId?: string; error: string }[] = [];
 
-  const householdIds = ['11111111-1111-4111-8111-111111111111'];
+  const discoveredHouseholds = deps.repo.listAllHouseholdIds
+    ? await deps.repo.listAllHouseholdIds()
+    : [];
+  const householdIds =
+    discoveredHouseholds.length > 0
+      ? discoveredHouseholds
+      : ['11111111-1111-4111-8111-111111111111'];
 
   // 1. Token maintenance: check and refresh expiring tokens
   for (const hid of householdIds) {
@@ -42,7 +55,39 @@ export async function dispatchScheduledCronJobs(
         const locked = await deps.tokenStore.acquireRefreshLock(hid);
         if (locked) {
           try {
-            // Token refreshed if needed
+            if (deps.teslaAuth && tokens.refreshToken) {
+              const refreshed = await refreshAccessToken(
+                {
+                  clientId: deps.teslaAuth.clientId,
+                  clientSecret: deps.teslaAuth.clientSecret,
+                  refreshToken: tokens.refreshToken,
+                },
+                deps.fetcher,
+              );
+              const newExpiresAt = Math.floor(Date.now() / 1000) + (refreshed.expires_in || 28800);
+              await deps.tokenStore.saveTokens(hid, {
+                accessToken: refreshed.access_token,
+                refreshToken: refreshed.refresh_token,
+                expiresAt: newExpiresAt,
+                tokenType: refreshed.token_type,
+                scope: refreshed.scope,
+                regionBaseUrl: tokens.regionBaseUrl,
+              });
+              await deps.repo.setTeslaLink(hid, {
+                state: 'ACTIVE',
+                scopes: refreshed.scope.split(' ').filter(Boolean),
+                lastRefreshAt: new Date(now).toISOString(),
+              });
+            }
+          } catch (refreshErr) {
+            await deps.repo.setTeslaLink(hid, {
+              state: 'NEEDS_REAUTH',
+              scopes: tokens.scope.split(' ').filter(Boolean),
+              lastRefreshAt: new Date(now).toISOString(),
+            });
+            errors.push({
+              error: `Token refresh failed for ${hid}: ${refreshErr instanceof Error ? refreshErr.message : String(refreshErr)}`,
+            });
           } finally {
             await deps.tokenStore.releaseRefreshLock(hid);
           }

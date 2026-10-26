@@ -274,6 +274,7 @@ export interface Repository {
     householdId: string,
     userId: string,
   ): Promise<{ success: boolean; error?: 'LAST_ADMIN' | 'NOT_FOUND' }>;
+  listAllHouseholdIds?(): Promise<readonly string[]>;
 }
 
 export class InMemoryRepository implements Repository {
@@ -528,6 +529,10 @@ export class InMemoryRepository implements Repository {
 
   async getHousehold(householdId: string): Promise<Household | null> {
     return this.households.get(householdId) ?? null;
+  }
+
+  async listAllHouseholdIds(): Promise<readonly string[]> {
+    return Array.from(this.households.keys());
   }
 
   async getMembership(

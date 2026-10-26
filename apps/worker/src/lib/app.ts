@@ -100,7 +100,7 @@ import {
 } from '../routes/admin';
 import type { CostsQuery, EnergyQuery, PowerQuery } from '@autopw3/shared';
 import { MockTeslaClient } from '../providers/tesla/mock-adapter';
-import type { ITeslaClient } from '../providers/tesla/client';
+import { TeslaClient, type ITeslaClient } from '../providers/tesla/client';
 import { InMemoryOAuthStateStore, type OAuthStateStore } from '../providers/tesla/oauth';
 import { InMemoryTokenStore, type TokenStore } from '../services/tokens/store';
 
@@ -173,8 +173,16 @@ export async function handleApiRequest(
   const repo = deps.repo ?? defaultRepo;
   const idempotencyStore = deps.idempotencyStore ?? defaultIdempotencyStore;
   const rateLimiter = deps.rateLimiter ?? defaultRateLimiter;
-  const teslaClient = deps.teslaClient ?? defaultTeslaClient;
-  const tokenStore = deps.tokenStore ?? defaultTokenStore;
+  const teslaClient =
+    deps.teslaClient ??
+    (env.PROVIDER_MODE !== 'mock' && env.TESLA_CLIENT_ID
+      ? new TeslaClient(deps.fetcher)
+      : defaultTeslaClient);
+  const tokenStore =
+    deps.tokenStore ??
+    (env.TOKEN_ENCRYPTION_KEY
+      ? new InMemoryTokenStore(env.TOKEN_ENCRYPTION_KEY)
+      : defaultTokenStore);
   const oauthStateStore = deps.oauthStateStore ?? defaultOAuthStateStore;
 
   // 4. Request Body Size Limit Check (64 KiB default, 1 MiB for dynamic price points)
