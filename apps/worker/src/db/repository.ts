@@ -1,4 +1,6 @@
 import type {
+  AuditEntry,
+  AuditQuery,
   AutomationExecution,
   AutomationRule,
   CommandEvent,
@@ -9,12 +11,15 @@ import type {
   EnergySeriesPoint,
   EnergySite,
   Household,
+  HouseholdExportResponse,
   HouseholdSettingsView,
+  MeExportResponse,
   PersistedPowerSample,
   Role,
   RuleMode,
   Tariff,
   TeslaLinkStatus,
+  UpdateHouseholdSettingsRequest,
   UpdateRuleRequest,
 } from '@autopw3/shared';
 import type { SiteConfiguration, StoredCommandRecord } from '../services/commands/types';
@@ -236,6 +241,39 @@ export interface Repository {
   ): Promise<{ requestCount: number; errorCount: number }>;
   purgeOldMetricsLog(olderThanUtc: string, dryRun: boolean): Promise<{ deletedCount: number }>;
   purgeOldScheduledJobs(olderThanUtc: string, dryRun: boolean): Promise<{ deletedCount: number }>;
+  removeMember(
+    householdId: string,
+    callerUserId: string,
+    targetUserId: string,
+  ): Promise<{ success: boolean; error?: 'SELF_MODIFICATION' | 'LAST_ADMIN' | 'NOT_FOUND' }>;
+  updateHousehold(
+    householdId: string,
+    updates: { name?: string | undefined; timezone?: string | undefined },
+  ): Promise<Household | null>;
+  updateSite(siteId: string, updates: { name?: string | undefined }): Promise<EnergySite | null>;
+  updateSettings(
+    householdId: string,
+    updates: UpdateHouseholdSettingsRequest,
+  ): Promise<HouseholdSettingsView | null>;
+  listAudit(
+    householdId: string,
+    query: AuditQuery,
+  ): Promise<{ items: readonly AuditEntry[]; nextCursor: string | null }>;
+  recordAuditEvent(
+    householdId: string,
+    entry: Omit<AuditEntry, 'id' | 'createdAt'> & { createdAt?: string },
+  ): Promise<AuditEntry>;
+  exportHouseholdData(householdId: string): Promise<HouseholdExportResponse>;
+  deleteHousehold(
+    householdId: string,
+    confirmName: string,
+  ): Promise<{ success: boolean; error?: 'NAME_MISMATCH' | 'NOT_FOUND' }>;
+  exportMe(userId: string): Promise<MeExportResponse>;
+  deleteAccount(userId: string): Promise<{ success: boolean; error?: 'LAST_ADMIN' }>;
+  leaveHousehold(
+    householdId: string,
+    userId: string,
+  ): Promise<{ success: boolean; error?: 'LAST_ADMIN' | 'NOT_FOUND' }>;
 }
 
 export class InMemoryRepository implements Repository {
@@ -269,6 +307,20 @@ export class InMemoryRepository implements Repository {
     string,
     { id: string; state: string; createdAt: string; finishedAt?: string }
   >();
+  private readonly householdSettings = new Map<
+    string,
+    {
+      monthlySpendCapUsd: string;
+      liveBackgroundIntervalMinutes: number;
+      liveOnDemandMinIntervalSeconds: number;
+      onDemandMonthlyAllowance: number;
+      rawRetentionDays: number;
+      staleAfterSeconds: number;
+      controlsEnabled: boolean;
+    }
+  >();
+  private readonly auditLogs = new Map<string, AuditEntry[]>();
+  private auditIdCounter = 1;
 
   constructor() {
     this.seedDefaultData();
@@ -394,6 +446,64 @@ export class InMemoryRepository implements Repository {
       allowGridExport: true,
       lastUpdated: '2026-06-21T12:00:00Z',
     });
+
+    this.householdSettings.set(hid, {
+      monthlySpendCapUsd: '9.00',
+      liveBackgroundIntervalMinutes: 5,
+      liveOnDemandMinIntervalSeconds: 30,
+      onDemandMonthlyAllowance: 100,
+      rawRetentionDays: 90,
+      staleAfterSeconds: 300,
+      controlsEnabled: true,
+    });
+
+    this.auditLogs.set(hid, [
+      {
+        id: '1',
+        action: 'bootstrap.completed',
+        actorType: 'SYSTEM',
+        actorUserId: null,
+        targetType: 'household',
+        targetId: hid,
+        metadata: { initialSiteId: sid },
+        requestId: 'bootstrap-req-1',
+        createdAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: '2',
+        action: 'member.added',
+        actorType: 'USER',
+        actorUserId: adminId,
+        targetType: 'user',
+        targetId: rwId,
+        metadata: { role: 'READ_WRITE' },
+        requestId: 'invite-req-1',
+        createdAt: '2026-01-02T00:00:00Z',
+      },
+      {
+        id: '3',
+        action: 'member.added',
+        actorType: 'USER',
+        actorUserId: adminId,
+        targetType: 'user',
+        targetId: roId,
+        metadata: { role: 'READ_ONLY' },
+        requestId: 'invite-req-2',
+        createdAt: '2026-01-03T00:00:00Z',
+      },
+      {
+        id: '4',
+        action: 'rule.mode_changed',
+        actorType: 'USER',
+        actorUserId: adminId,
+        targetType: 'rule',
+        targetId: r1Id,
+        metadata: { oldMode: 'DISABLED', newMode: 'DRY_RUN' },
+        requestId: 'rule-req-1',
+        createdAt: '2026-01-05T00:00:00Z',
+      },
+    ]);
+    this.auditIdCounter = 5;
   }
 
   async getHouseholdMemberships(
@@ -614,17 +724,56 @@ export class InMemoryRepository implements Repository {
 
   async getSettings(householdId: string): Promise<HouseholdSettingsView | null> {
     if (!this.households.has(householdId)) return null;
+    const settings = this.householdSettings.get(householdId) ?? {
+      monthlySpendCapUsd: '9.00',
+      liveBackgroundIntervalMinutes: 5,
+      liveOnDemandMinIntervalSeconds: 30,
+      onDemandMonthlyAllowance: 100,
+      rawRetentionDays: 90,
+      staleAfterSeconds: 300,
+      controlsEnabled: true,
+    };
     const pauseInfo = this.householdAutomationPaused.get(householdId);
     return {
-      staleAfterSeconds: 300,
+      staleAfterSeconds: settings.staleAfterSeconds,
       automationPaused: pauseInfo?.paused ?? false,
-      controlsEnabled: true,
+      controlsEnabled: settings.controlsEnabled,
       budget: {
         spentUsd: '0.00',
-        capUsd: '9.00',
+        capUsd: settings.monthlySpendCapUsd,
         state: 'OK',
       },
     };
+  }
+
+  async updateSettings(
+    householdId: string,
+    updates: UpdateHouseholdSettingsRequest,
+  ): Promise<HouseholdSettingsView | null> {
+    if (!this.households.has(householdId)) return null;
+    const current = this.householdSettings.get(householdId) ?? {
+      monthlySpendCapUsd: '9.00',
+      liveBackgroundIntervalMinutes: 5,
+      liveOnDemandMinIntervalSeconds: 30,
+      onDemandMonthlyAllowance: 100,
+      rawRetentionDays: 90,
+      staleAfterSeconds: 300,
+      controlsEnabled: true,
+    };
+    const updated = {
+      monthlySpendCapUsd: updates.monthlySpendCapUsd ?? current.monthlySpendCapUsd,
+      liveBackgroundIntervalMinutes:
+        updates.liveBackgroundIntervalMinutes ?? current.liveBackgroundIntervalMinutes,
+      liveOnDemandMinIntervalSeconds:
+        updates.liveOnDemandMinIntervalSeconds ?? current.liveOnDemandMinIntervalSeconds,
+      onDemandMonthlyAllowance:
+        updates.onDemandMonthlyAllowance ?? current.onDemandMonthlyAllowance,
+      rawRetentionDays: updates.rawRetentionDays ?? current.rawRetentionDays,
+      staleAfterSeconds: updates.staleAfterSeconds ?? current.staleAfterSeconds,
+      controlsEnabled: updates.controlsEnabled ?? current.controlsEnabled,
+    };
+    this.householdSettings.set(householdId, updated);
+    return this.getSettings(householdId);
   }
 
   async listSites(
@@ -1343,6 +1492,294 @@ export class InMemoryRepository implements Repository {
       }
     }
     return { deletedCount: deleted };
+  }
+
+  async removeMember(
+    householdId: string,
+    callerUserId: string,
+    targetUserId: string,
+  ): Promise<{ success: boolean; error?: 'SELF_MODIFICATION' | 'LAST_ADMIN' | 'NOT_FOUND' }> {
+    if (callerUserId === targetUserId) {
+      return { success: false, error: 'SELF_MODIFICATION' };
+    }
+    const hhMembers = this.members.get(householdId);
+    if (!hhMembers) return { success: false, error: 'NOT_FOUND' };
+    const target = hhMembers.get(targetUserId);
+    if (!target) return { success: false, error: 'NOT_FOUND' };
+
+    if (target.role === 'ADMIN') {
+      const adminCount = Array.from(hhMembers.values()).filter((m) => m.role === 'ADMIN').length;
+      if (adminCount <= 1) {
+        return { success: false, error: 'LAST_ADMIN' };
+      }
+    }
+
+    hhMembers.delete(targetUserId);
+    return { success: true };
+  }
+
+  async updateHousehold(
+    householdId: string,
+    updates: { name?: string | undefined; timezone?: string | undefined },
+  ): Promise<Household | null> {
+    const hh = this.households.get(householdId);
+    if (!hh) return null;
+    const updated: Household = {
+      ...hh,
+      name: updates.name ?? hh.name,
+      timezone: updates.timezone ?? hh.timezone,
+    };
+    this.households.set(householdId, updated);
+    return updated;
+  }
+
+  async updateSite(
+    siteId: string,
+    updates: { name?: string | undefined },
+  ): Promise<EnergySite | null> {
+    const site = this.sites.get(siteId);
+    if (!site) return null;
+    const updated: EnergySite = {
+      ...site,
+      name: updates.name ?? site.name,
+    };
+    this.sites.set(siteId, updated);
+    return updated;
+  }
+
+  async recordAuditEvent(
+    householdId: string,
+    entry: Omit<AuditEntry, 'id' | 'createdAt'> & { createdAt?: string },
+  ): Promise<AuditEntry> {
+    const id = String(this.auditIdCounter++);
+    const createdAt = entry.createdAt ?? new Date().toISOString();
+    const fullEntry: AuditEntry = {
+      id,
+      action: entry.action,
+      actorType: entry.actorType,
+      actorUserId: entry.actorUserId,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      metadata: entry.metadata,
+      requestId: entry.requestId,
+      createdAt,
+    };
+    let list = this.auditLogs.get(householdId);
+    if (!list) {
+      list = [];
+      this.auditLogs.set(householdId, list);
+    }
+    list.push(fullEntry);
+    return fullEntry;
+  }
+
+  async listAudit(
+    householdId: string,
+    query: AuditQuery,
+  ): Promise<{ items: readonly AuditEntry[]; nextCursor: string | null }> {
+    const list = this.auditLogs.get(householdId) ?? [];
+    let filtered = [...list];
+    if (query.action) {
+      filtered = filtered.filter((e) => e.action === query.action);
+    }
+    if (query.from) {
+      const fromTime = Date.parse(query.from);
+      filtered = filtered.filter((e) => Date.parse(e.createdAt) >= fromTime);
+    }
+    if (query.to) {
+      const toTime = Date.parse(query.to);
+      filtered = filtered.filter((e) => Date.parse(e.createdAt) <= toTime);
+    }
+
+    filtered.sort((a, b) => {
+      const timeDiff = Date.parse(b.createdAt) - Date.parse(a.createdAt);
+      if (timeDiff !== 0) return timeDiff;
+      return Number(b.id) - Number(a.id);
+    });
+
+    if (query.cursor) {
+      const idx = filtered.findIndex((e) => e.id === query.cursor);
+      if (idx >= 0) {
+        filtered = filtered.slice(idx + 1);
+      }
+    }
+
+    const limit = Math.min(Math.max(1, query.limit ?? 50), 200);
+    const page = filtered.slice(0, limit);
+    const nextCursor =
+      page.length === limit && filtered.length > limit ? page[page.length - 1]!.id : null;
+    return { items: page, nextCursor };
+  }
+
+  async exportHouseholdData(householdId: string): Promise<HouseholdExportResponse> {
+    const hh = this.households.get(householdId);
+    if (!hh) {
+      return {
+        status: 'READY',
+        requestedAt: new Date().toISOString(),
+        data: null,
+      };
+    }
+
+    const members = Array.from(this.members.get(householdId)?.values() ?? []).map((m) => ({
+      userId: m.userId,
+      displayName: m.displayName,
+      role: m.role,
+      createdAt: m.createdAt,
+    }));
+
+    const sites = Array.from(this.siteHouseholdMap.entries())
+      .filter(([, h]) => h === householdId)
+      .map(([s]) => this.sites.get(s))
+      .filter((s): s is EnergySite => s !== undefined)
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        timezone: s.timezone,
+        provider: s.provider,
+        connectionState: s.connectionState,
+      }));
+
+    const tariffs = Array.from(this.tariffHouseholdMap.entries())
+      .filter(([, h]) => h === householdId)
+      .map(([t]) => this.tariffs.get(t))
+      .filter((t): t is Tariff => t !== undefined);
+
+    const rules: AutomationRule[] = [];
+    for (const site of sites) {
+      for (const [rId, rule] of this.rules.entries()) {
+        if (this.ruleSiteMap.get(rId) === site.id) {
+          rules.push(rule);
+        }
+      }
+    }
+
+    const recentAudit = (this.auditLogs.get(householdId) ?? []).slice(-100);
+
+    return {
+      status: 'READY',
+      requestedAt: new Date().toISOString(),
+      data: {
+        household: hh,
+        members,
+        sites,
+        tariffs,
+        rules,
+        recentAudit,
+      },
+    };
+  }
+
+  async deleteHousehold(
+    householdId: string,
+    confirmName: string,
+  ): Promise<{ success: boolean; error?: 'NAME_MISMATCH' | 'NOT_FOUND' }> {
+    const hh = this.households.get(householdId);
+    if (!hh) return { success: false, error: 'NOT_FOUND' };
+    if (hh.name.trim() !== confirmName.trim()) {
+      return { success: false, error: 'NAME_MISMATCH' };
+    }
+
+    this.households.delete(householdId);
+    this.members.delete(householdId);
+    this.householdSettings.delete(householdId);
+    this.auditLogs.delete(householdId);
+    this.householdAutomationPaused.delete(householdId);
+    this.teslaLinks.delete(householdId);
+
+    for (const [id, inv] of this.invitations.entries()) {
+      if (inv.householdId === householdId) {
+        this.invitations.delete(id);
+      }
+    }
+
+    for (const [tId, hid] of this.tariffHouseholdMap.entries()) {
+      if (hid === householdId) {
+        this.tariffs.delete(tId);
+        this.tariffHouseholdMap.delete(tId);
+      }
+    }
+
+    for (const [sId, hid] of this.siteHouseholdMap.entries()) {
+      if (hid === householdId) {
+        this.sites.delete(sId);
+        this.siteHouseholdMap.delete(sId);
+        this.siteProviderIds.delete(sId);
+        this.siteConfigurations.delete(sId);
+        for (const [rId, sid] of this.ruleSiteMap.entries()) {
+          if (sid === sId) {
+            this.rules.delete(rId);
+            this.ruleSiteMap.delete(rId);
+          }
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
+  async exportMe(userId: string): Promise<MeExportResponse> {
+    const memberships = await this.getHouseholdMemberships(userId);
+    let displayName: string | null = null;
+    for (const membersMap of this.members.values()) {
+      const m = membersMap.get(userId);
+      if (m && m.displayName) {
+        displayName = m.displayName;
+        break;
+      }
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      profile: {
+        userId,
+        displayName: displayName ?? 'User',
+        locale: 'en-IE',
+      },
+      memberships: memberships.map((m) => ({
+        householdId: m.householdId,
+        name: m.name,
+        role: m.role,
+      })),
+    };
+  }
+
+  async deleteAccount(userId: string): Promise<{ success: boolean; error?: 'LAST_ADMIN' }> {
+    for (const [, membersMap] of this.members.entries()) {
+      const member = membersMap.get(userId);
+      if (member && member.role === 'ADMIN') {
+        const admins = Array.from(membersMap.values()).filter((m) => m.role === 'ADMIN');
+        if (admins.length <= 1 && membersMap.size > 1) {
+          return { success: false, error: 'LAST_ADMIN' };
+        }
+      }
+    }
+
+    for (const membersMap of this.members.values()) {
+      membersMap.delete(userId);
+    }
+
+    return { success: true };
+  }
+
+  async leaveHousehold(
+    householdId: string,
+    userId: string,
+  ): Promise<{ success: boolean; error?: 'LAST_ADMIN' | 'NOT_FOUND' }> {
+    const membersMap = this.members.get(householdId);
+    if (!membersMap) return { success: false, error: 'NOT_FOUND' };
+    const member = membersMap.get(userId);
+    if (!member) return { success: false, error: 'NOT_FOUND' };
+
+    if (member.role === 'ADMIN') {
+      const admins = Array.from(membersMap.values()).filter((m) => m.role === 'ADMIN');
+      if (admins.length <= 1) {
+        return { success: false, error: 'LAST_ADMIN' };
+      }
+    }
+
+    membersMap.delete(userId);
+    return { success: true };
   }
 
   private async hashToken(token: string): Promise<string> {

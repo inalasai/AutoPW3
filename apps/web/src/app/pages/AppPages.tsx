@@ -1,17 +1,11 @@
 import { Link } from 'react-router';
 import { buttonClasses } from '../../components/ui/Button';
-import { DataTable, GlassCard } from '../../components/ui/display';
-import { ReadOnlyNotice } from '../../features/auth/permissions';
 import { Analytics } from '../../features/analytics';
 import { AutomationManager } from '../../features/automation';
 import { ControlMatrix } from '../../features/controls';
 import { TariffManager } from '../../features/tariffs';
-import { Page, PlannedFeature, useDocumentTitle } from './Page';
-
-/*
-  Structured placeholders (TASK-06). They show the page frame, status area and the components each feature will
-  use, with no data fetching, no authentication and no energy calculation. A dash means "no data", never zero.
-*/
+import { AdminPanel } from '../../features/admin';
+import { useDocumentTitle } from './Page';
 
 export function AnalyticsPage() {
   return <Analytics />;
@@ -30,46 +24,24 @@ export function AutomationPage() {
 }
 
 export function SettingsPage() {
+  useDocumentTitle('Settings');
   return (
-    <Page title="Settings" description="Your profile, the Tesla connection, budget and data.">
-      <ReadOnlyNotice what="change household settings" />
-      <PlannedFeature title="Profile" task="19" description="Display name and locale." />
-      <PlannedFeature
-        title="Tesla connection"
-        task="15"
-        description="Connect or disconnect the Tesla account. Admins only."
-      />
-      <PlannedFeature
-        title="Budget and retention"
-        task="19"
-        description="Monthly API spend cap and data retention. Admins only."
-      />
-      <PlannedFeature title="Your data" task="19" description="Export or delete your data." />
-    </Page>
+    <AdminPanel
+      defaultTab="settings"
+      title="Settings"
+      description="Your household configuration, Tesla connection, spend caps, and privacy data."
+    />
   );
 }
 
 export function AdminPage() {
+  useDocumentTitle('Admin');
   return (
-    <Page
+    <AdminPanel
+      defaultTab="members"
       title="Admin"
       description="Household members, invitations, roles and the audit log. Admins only."
-    >
-      <GlassCard title="Members">
-        <DataTable
-          caption="Members"
-          captionHidden
-          rows={[]}
-          getRowKey={(row: { id: string }) => row.id}
-          emptyMessage="Members appear here. Built in TASK-19."
-          columns={[
-            { key: 'name', header: 'Name', render: () => null },
-            { key: 'role', header: 'Role', render: () => null },
-            { key: 'joined', header: 'Joined', render: () => null },
-          ]}
-        />
-      </GlassCard>
-    </Page>
+    />
   );
 }
 

@@ -95,7 +95,7 @@ Chat-only assistants: attach the same files and apply the output manually; the r
 **Phase 5 — Controls and operations**
 - [x] TASK-17 Device controls - command lifecycle state machine (RECORDED → DISPATCHING → DISPATCHED → RECONCILING → DONE), read-back reconciliation (D-015), safety limits (D-003: no forced charge, no forced export, no solar bypass, no islanding), emergency automation pause toggle, ControlMatrix UI with permission gating (READ_ONLY blocked), DEVICE_CONTROL_SAFETY.md with cautious real-device test procedure; physical hardware testing UNVERIFIED / owner-manual test, PR and CI NOT_EXECUTED, see docs/handoffs/TASK-17.md
 - [x] TASK-18 Automation engine - priority-based rule evaluation with deterministic conflict resolution, atomic scheduled slot idempotency, dry-run safety barrier (WOULD_ACT, zero device dispatches), telemetry freshness & emergency pause gating, AutomationManager UI with condition builders and execution history; PR and CI NOT_EXECUTED, see docs/handoffs/TASK-18.md
-- [ ] TASK-19 Administration and audit
+- [x] TASK-19 Administration and audit - member directory & role mutations, cryptographic invitations lifecycle (hash stored, zero SMTP dependency), immutable audit logging with redaction, settings management (spend cap, stale threshold, retention days), GDPR compliance operations (Article 20 JSON exports for household/account, Article 17 Right to Erasure with last-admin guardrails and typed name confirmation), AdminPanel cockpit UI, Playwright smoke tests; PR and CI NOT_EXECUTED, see docs/handoffs/TASK-19.md
 
 **Phase 6 — Release**
 - [ ] TASK-20 Security audit and end-to-end tests

@@ -1,15 +1,21 @@
 import {
   ACCESS_MIN_ROLE,
   pathParamsSchema,
+  type AuditQuery,
   type CommandRequest,
   type ConnectTeslaRequest,
   type CreateRuleRequest,
   type CreateSiteRequest,
   type CreateTariffRequest,
+  type DeleteAccountRequest,
+  type DeleteHouseholdRequest,
   type EndTariffRequest,
   type PutPricePointsRequest,
   type Role,
+  type UpdateHouseholdRequest,
+  type UpdateHouseholdSettingsRequest,
   type UpdateRuleRequest,
+  type UpdateSiteRequest,
 } from '@autopw3/shared';
 import { InMemoryRepository, type Repository } from '../db/repository';
 import type { Env } from '../env';
@@ -80,6 +86,18 @@ import {
   handleGetLiveTelemetry,
   handleGetPower,
 } from '../routes/telemetry';
+import {
+  handleDeleteHousehold,
+  handleDeleteMe,
+  handleExportHousehold,
+  handleExportMe,
+  handleLeaveHousehold,
+  handleListAudit,
+  handleRemoveMember,
+  handleUpdateHousehold,
+  handleUpdateSettings,
+  handleUpdateSite,
+} from '../routes/admin';
 import type { CostsQuery, EnergyQuery, PowerQuery } from '@autopw3/shared';
 import { MockTeslaClient } from '../providers/tesla/mock-adapter';
 import type { ITeslaClient } from '../providers/tesla/client';
@@ -176,7 +194,12 @@ export async function handleApiRequest(
   }
 
   let rawBodyText = '';
-  if (request.method === 'POST' || request.method === 'PATCH' || request.method === 'PUT') {
+  if (
+    request.method === 'POST' ||
+    request.method === 'PATCH' ||
+    request.method === 'PUT' ||
+    request.method === 'DELETE'
+  ) {
     rawBodyText = await request.text();
     const byteLength = new TextEncoder().encode(rawBodyText).length;
     if (byteLength > maxBytes) {
@@ -780,6 +803,91 @@ export async function handleApiRequest(
     }
     case 'resumeAutomation': {
       handlerResponse = await handleResumeAutomation(pathParams['hid']!, repo, requestId);
+      break;
+    }
+    case 'removeMember': {
+      handlerResponse = await handleRemoveMember(
+        pathParams['hid']!,
+        pathParams['userId']!,
+        user!,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'updateSettings': {
+      handlerResponse = await handleUpdateSettings(
+        pathParams['hid']!,
+        parsedBody as UpdateHouseholdSettingsRequest,
+        user!,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'updateHousehold': {
+      handlerResponse = await handleUpdateHousehold(
+        pathParams['hid']!,
+        parsedBody as UpdateHouseholdRequest,
+        user!,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'updateSite': {
+      handlerResponse = await handleUpdateSite(
+        pathParams['siteId']!,
+        parsedBody as UpdateSiteRequest,
+        user!,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'listAudit': {
+      handlerResponse = await handleListAudit(
+        pathParams['hid']!,
+        parsedQuery as AuditQuery,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'exportHousehold': {
+      handlerResponse = await handleExportHousehold(pathParams['hid']!, user!, repo, requestId);
+      break;
+    }
+    case 'deleteHousehold': {
+      handlerResponse = await handleDeleteHousehold(
+        pathParams['hid']!,
+        parsedBody as DeleteHouseholdRequest,
+        user!,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'exportMe': {
+      handlerResponse = await handleExportMe(user!, repo, requestId);
+      break;
+    }
+    case 'deleteMe': {
+      handlerResponse = await handleDeleteMe(
+        parsedBody as DeleteAccountRequest,
+        user!,
+        repo,
+        requestId,
+      );
+      break;
+    }
+    case 'leaveHousehold': {
+      handlerResponse = await handleLeaveHousehold(
+        pathParams['householdId']!,
+        user!,
+        repo,
+        requestId,
+      );
       break;
     }
     default: {

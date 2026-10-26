@@ -607,5 +607,12 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Decision:** Scheduled rule execution enforces an atomic slot idempotency barrier derived from `(ruleId, siteId, scheduledSlot)`. Duplicate triggers for the same scheduled slot are immediately deduplicated by `recordAutomationExecution`. Rules default to `DRY_RUN` mode upon creation, which records simulated decisions (`WOULD_ACT`) in `automation_executions` and is structurally blocked from calling control endpoints or dispatching commands. Promotion to `ACTIVE` requires explicit administrative action (`ADMIN` role check), and any delayed execution beyond `maxMissedMinutes` is aborted with `SKIPPED_MISSED`.
 - **Rationale:** Guarantees zero unverified dispatches to physical Powerwalls; provides users with full visibility into rule behavior before enabling real hardware actuations.
 
+## D-107 Authoritative household-scoped administration and last-admin invariant (TASK-19)
+- **Status:** Proposed
+- **Decision:** Administrative authority is strictly scoped to the household where the caller holds `ADMIN` membership; client-provided roles or tokens are never trusted. All administrative endpoints (`PATCH/DELETE /members`, `PATCH /settings`, `DELETE /invitations`, `DELETE /households`) enforce authoritative server verification. Self-demotion is rejected (`SELF_MODIFICATION`), and the last active `ADMIN` in a household cannot be demoted or removed (`LAST_ADMIN`, HTTP 409) to ensure households are never orphaned.
+- **Rationale:** Docs `SECURITY_MODEL.md` section 2, Project Rule 1 (backend authoritative). Ensures household administrative operations remain safe and impossible to brick or orphan.
 
-
+## D-108 Cryptographic invitation tokens and GDPR compliance operations (TASK-19)
+- **Status:** Proposed
+- **Decision:** Member invitations use random 256-bit entropy tokens (`crypto.getRandomValues`) with raw tokens displayed once to the inviter and stored exclusively as SHA-256 hashes (`token_hash`) in the database. Full GDPR Article 20 data portability is provided via sanitized JSON exports (`/households/{id}/export` and `/me/export`) with zero credentials or tokens leaked. Right to Erasure (Article 17) provides atomic, confirmed erasure requiring exact typed household name matching (`confirmName`) for household deletion and `confirm: true` for account deletion, with last-admin guardrails enforced.
+- **Rationale:** Docs `PRIVACY.md` and `SECURITY_MODEL.md`; satisfies privacy-by-design requirements without external SMTP infrastructure dependencies.
