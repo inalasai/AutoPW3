@@ -263,6 +263,16 @@ sequenceDiagram
 
 ### Step 3: Configure & Deploy Cloudflare Worker
 
+> **Option A (Automated Wizard):**
+> You can run the interactive deployment wizard on Windows:
+> ```powershell
+> npm run deploy:wizard
+> ```
+> This handles login, AES-GCM key generation, secret injection, building, and deployment automatically. See [`docs/BEGINNER_INSTALLATION_GUIDE.md`](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/BEGINNER_INSTALLATION_GUIDE.md) for full visual walkthrough.
+
+> **Option B (Manual Commands):**
+> Follow the manual steps below.
+
 1. **Authenticate Wrangler CLI:**
    ```bash
    npx wrangler login
