@@ -46,16 +46,37 @@ To connect your Tesla Powerwall, you need a free application registration on the
 3. Under **Step 1 (Registration)** & **Step 2 (Application Details)**: Enter an application name (e.g., `AutoPW3 Energy Management`) and description.
 4. Under **Step 3 (Client Details)**:
 
+Here is the blank screen you will see on the Tesla Developer Portal:
+
 ![Tesla Fleet API Client Details Setup](./assets/tesla_developer_portal_setup.png)
 
-Fill out the fields as shown below:
+And here is what it looks like with **sample values filled in**:
+
+![Tesla Fleet API Client Details with Sample Values](./assets/tesla_client_details_sample.jpg)
+
+### What to Fill in (Field-by-Field):
 
 | Field | Value to Enter | Why |
 | :--- | :--- | :--- |
 | **OAuth Grant Type** | 🔘 **Authorisation Code and Machine-to-Machine** *(default)* | Allows household members to securely sign in and authorize Powerwall access. |
-| **Allowed Origin URL(s)** | `https://autopw3.<your-subdomain>.workers.dev`<br>*(or `https://yourdomain.com` if using a custom domain)* | Your deployed website domain **without a trailing slash**. Click `+` to add `http://localhost:5173` if developing locally. |
-| **Allowed Redirect URI(s)** | `https://autopw3.<your-subdomain>.workers.dev/api/v1/oauth/tesla/callback`<br>*(or `https://yourdomain.com/api/v1/oauth/tesla/callback`)* | The exact URL where Tesla redirects back after you click "Allow". *(AutoPW3 also supports `/api/v1/provider/tesla/callback`).* |
+| **Allowed Origin URL(s)** | `https://autopw3-energy.workers.dev`<br>*(or your custom domain)* | Your deployed website domain **without a trailing slash**. Click `+` to add `http://localhost:5173` if developing locally. |
+| **Allowed Redirect URI(s)** | `https://autopw3-energy.workers.dev/api/v1/oauth/tesla/callback`<br>*(or your custom domain callback)* | The exact URL where Tesla redirects back after you click "Allow". *(AutoPW3 also supports `/api/v1/provider/tesla/callback`).* |
 | **Allowed Returned URL(s)** | *(Leave blank / empty)* | This field is optional. |
+
+### Concrete Sample Values to Copy & Paste:
+
+> **Example 1: Using Cloudflare Workers Free Subdomain (Most Common)**
+> - **Allowed Origin URL:** `https://autopw3-energy.workers.dev`
+> - **Allowed Redirect URI:** `https://autopw3-energy.workers.dev/api/v1/oauth/tesla/callback`
+> *(Replace `autopw3-energy` with the name of your Cloudflare worker).*
+
+> **Example 2: Using Your Own Custom Domain**
+> - **Allowed Origin URL:** `https://autopw3.yourdomain.com`
+> - **Allowed Redirect URI:** `https://autopw3.yourdomain.com/api/v1/oauth/tesla/callback`
+
+> **Example 3: Local Testing / Development**
+> - **Allowed Origin URL:** `http://localhost:5173`
+> - **Allowed Redirect URI:** `http://localhost:8787/api/v1/oauth/tesla/callback`
 
 5. Under **Step 4 (API & Scopes)**:
 Select the following permissions required by AutoPW3:
