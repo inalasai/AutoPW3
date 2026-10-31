@@ -4,6 +4,7 @@ import type { CommandRequest } from '@autopw3/shared';
 import { InMemoryRepository } from '../../db/repository';
 import { MockTeslaClient } from '../../providers/tesla/mock-adapter';
 import { TeslaApiError } from '../../providers/tesla/client';
+import { InMemoryTokenStore } from '../tokens/store';
 import {
   AutomationPausedError,
   CapabilityNotSupportedError,
@@ -17,15 +18,26 @@ describe('Device Command Executor', () => {
   const householdId = '11111111-1111-4111-8111-111111111111';
   const userId = '55555555-5555-4555-8555-555555555555';
 
-  function setup() {
+  async function setup() {
     const repo = new InMemoryRepository();
     const teslaClient = new MockTeslaClient();
+    const tokenStore = new InMemoryTokenStore(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    );
+    await tokenStore.saveTokens(householdId, {
+      accessToken: 'test-access-token',
+      refreshToken: 'test-refresh-token',
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      tokenType: 'Bearer',
+      scope: 'openid energy_device_data energy_cmds',
+      regionBaseUrl: 'https://fleet-api.example.invalid',
+    });
     const clock = new FixedClock(new Date('2026-06-21T12:00:00Z'));
-    return { repo, teslaClient, clock };
+    return { repo, teslaClient, tokenStore, clock };
   }
 
   it('records intent before dispatch and transitions through phases to CONFIRMED on reconciliation match', async () => {
-    const { repo, teslaClient, clock } = setup();
+    const { repo, teslaClient, tokenStore, clock } = await setup();
 
     const request: CommandRequest = {
       kind: 'SET_BACKUP_RESERVE',
@@ -40,7 +52,7 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'test-idemp-001',
       },
-      { repo, teslaClient, clock },
+      { repo, teslaClient, tokenStore, clock },
     );
 
     expect(result.success).toBe(true);
@@ -69,7 +81,7 @@ describe('Device Command Executor', () => {
   });
 
   it('marks state as UNKNOWN when read-back does not match requested parameters', async () => {
-    const { repo, clock } = setup();
+    const { repo, tokenStore, clock } = await setup();
 
     // Client where read-back siteInfo returns old backup_reserve_percent (mismatch)
     class MismatchingTeslaClient extends MockTeslaClient {
@@ -98,7 +110,7 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'test-idemp-mismatch',
       },
-      { repo, teslaClient: new MismatchingTeslaClient(), clock },
+      { repo, teslaClient: new MismatchingTeslaClient(), tokenStore, clock },
     );
 
     expect(result.success).toBe(false);
@@ -108,8 +120,30 @@ describe('Device Command Executor', () => {
     expect(result.command.outcome.physicalOutcomeGuaranteed).toBe(false);
   });
 
+  it('fails a Tesla command closed when no token store exists and never dispatches a placeholder token', async () => {
+    const { repo, clock } = await setup();
+    const client = new MockTeslaClient();
+    let dispatches = 0;
+    client.setBackupReserve = async () => {
+      dispatches += 1;
+      return { response: {} };
+    };
+
+    const result = await executeDeviceCommand(
+      siteId,
+      { kind: 'SET_BACKUP_RESERVE', params: { backupReservePercent: 50 } },
+      { origin: 'USER', actorUserId: userId, idempotencyKey: 'no-token-store-001' },
+      { repo, teslaClient: client, clock },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.command.state).toBe('FAILED');
+    expect(result.command.errorCode).toBe('TOKEN_UNAVAILABLE');
+    expect(dispatches).toBe(0);
+  });
+
   it('replays identical result when exact same idempotency key is submitted', async () => {
-    const { repo, teslaClient, clock } = setup();
+    const { repo, teslaClient, tokenStore, clock } = await setup();
 
     const request: CommandRequest = {
       kind: 'SET_OPERATION_MODE',
@@ -124,7 +158,7 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'idemp-replay-key',
       },
-      { repo, teslaClient, clock },
+      { repo, teslaClient, tokenStore, clock },
     );
 
     const second = await executeDeviceCommand(
@@ -135,7 +169,7 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'idemp-replay-key',
       },
-      { repo, teslaClient, clock },
+      { repo, teslaClient, tokenStore, clock },
     );
 
     expect(second.replayed).toBe(true);
@@ -144,7 +178,7 @@ describe('Device Command Executor', () => {
   });
 
   it('throws ConflictError (409) when idempotency key is reused with different parameters', async () => {
-    const { repo, teslaClient, clock } = setup();
+    const { repo, teslaClient, tokenStore, clock } = await setup();
 
     const request1: CommandRequest = {
       kind: 'SET_BACKUP_RESERVE',
@@ -159,7 +193,7 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'idemp-conflict-key',
       },
-      { repo, teslaClient, clock },
+      { repo, teslaClient, tokenStore, clock },
     );
 
     const request2: CommandRequest = {
@@ -176,13 +210,13 @@ describe('Device Command Executor', () => {
           actorUserId: userId,
           idempotencyKey: 'idemp-conflict-key',
         },
-        { repo, teslaClient, clock },
+        { repo, teslaClient, tokenStore, clock },
       ),
     ).rejects.toThrow(ConflictError);
   });
 
   it('blocks commands originating from AUTOMATION when household automation is paused', async () => {
-    const { repo, teslaClient, clock } = setup();
+    const { repo, teslaClient, tokenStore, clock } = await setup();
 
     // Pause automation for household
     await repo.setAutomationPaused(householdId, true);
@@ -201,7 +235,7 @@ describe('Device Command Executor', () => {
           actorUserId: null,
           idempotencyKey: 'auto-cmd-001',
         },
-        { repo, teslaClient, clock },
+        { repo, teslaClient, tokenStore, clock },
       ),
     ).rejects.toThrow(AutomationPausedError);
 
@@ -214,13 +248,13 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'user-cmd-001',
       },
-      { repo, teslaClient, clock },
+      { repo, teslaClient, tokenStore, clock },
     );
     expect(userResult.success).toBe(true);
   });
 
   it('rejects unsupported or unverified command types (stop condition)', async () => {
-    const { repo, teslaClient, clock } = setup();
+    const { repo, teslaClient, tokenStore, clock } = await setup();
 
     const unverifiedRequest: CommandRequest = {
       kind: 'SET_OFF_GRID_VEHICLE_CHARGING_RESERVE',
@@ -236,13 +270,13 @@ describe('Device Command Executor', () => {
           actorUserId: userId,
           idempotencyKey: 'unverified-cmd-001',
         },
-        { repo, teslaClient, clock },
+        { repo, teslaClient, tokenStore, clock },
       ),
     ).rejects.toThrow(CapabilityNotSupportedError);
   });
 
   it('rejects invalid backup reserve percentages with SafetyLimitError', async () => {
-    const { repo, teslaClient, clock } = setup();
+    const { repo, teslaClient, tokenStore, clock } = await setup();
 
     const invalidRequest = {
       kind: 'SET_BACKUP_RESERVE',
@@ -258,13 +292,13 @@ describe('Device Command Executor', () => {
           actorUserId: userId,
           idempotencyKey: 'invalid-reserve-001',
         },
-        { repo, teslaClient, clock },
+        { repo, teslaClient, tokenStore, clock },
       ),
     ).rejects.toThrow(SafetyLimitError);
   });
 
   it('handles provider 4xx client errors by marking state FAILED without retries', async () => {
-    const { repo, clock } = setup();
+    const { repo, tokenStore, clock } = await setup();
 
     class Client4xxError extends MockTeslaClient {
       override async setBackupReserve(): Promise<{ response?: unknown }> {
@@ -285,7 +319,7 @@ describe('Device Command Executor', () => {
         actorUserId: userId,
         idempotencyKey: 'cmd-4xx-001',
       },
-      { repo, teslaClient: new Client4xxError(), clock },
+      { repo, teslaClient: new Client4xxError(), tokenStore, clock },
     );
 
     expect(res.success).toBe(false);
@@ -295,7 +329,7 @@ describe('Device Command Executor', () => {
   });
 
   it('handles provider timeout by marking state as UNKNOWN', async () => {
-    const { repo, clock } = setup();
+    const { repo, tokenStore, clock } = await setup();
 
     class HangingTeslaClient extends MockTeslaClient {
       override async setBackupReserve(): Promise<{ response?: unknown }> {
@@ -318,7 +352,7 @@ describe('Device Command Executor', () => {
         idempotencyKey: 'cmd-timeout-001',
         timeoutMs: 50, // Short timeout for test
       },
-      { repo, teslaClient: new HangingTeslaClient(), clock },
+      { repo, teslaClient: new HangingTeslaClient(), tokenStore, clock },
     );
 
     expect(res.success).toBe(false);

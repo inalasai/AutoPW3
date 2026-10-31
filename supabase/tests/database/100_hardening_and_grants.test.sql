@@ -3,7 +3,7 @@
 
 begin;
 
-select plan(18);
+select plan(22);
 
 select tests.clear();
 
@@ -42,8 +42,8 @@ select is(
     where n.nspname in ('public', 'private') and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
   'private.has_role_at_least, private.is_member, public.accept_invitation, public.change_member_role, '
     || 'public.create_invitation, public.leave_household, public.remove_member, public.revoke_invitation, '
-    || 'public.set_automation_paused, public.set_rule_mode',
-  'authenticated can execute exactly the two policy helpers and the eight audited RPC functions'
+    || 'public.set_automation_paused, public.set_rule_mode, public.update_household',
+  'authenticated can execute exactly the two policy helpers and the nine authenticated RPC functions'
 );
 select ok(
   has_function_privilege('service_role', 'private.bootstrap_first_admin(text, text, text)', 'EXECUTE'),
@@ -54,6 +54,14 @@ select ok(
     and not has_function_privilege('anon', 'private.bootstrap_first_admin(text, text, text)', 'EXECUTE'),
   'neither authenticated nor anon can execute the bootstrap'
 );
+
+select tests.world();
+select tests.as_user('alice');
+select throws_ok($q$select count(*) from private.claim_jobs('attacker', 1, 60)$q$, '42501', null, 'authenticated cannot invoke job claiming');
+select throws_ok($q$select private.acquire_lock('attacker-lock', 'attacker', 60)$q$, '42501', null, 'authenticated cannot acquire service job locks');
+select throws_ok($q$select private.release_lock('attacker-lock', 'attacker')$q$, '42501', null, 'authenticated cannot release service job locks');
+select throws_ok($q$select private.record_provider_call(tests.id('h1'), 'telemetry', true)$q$, '42501', null, 'authenticated cannot forge provider usage counters');
+select tests.clear();
 
 -- ---- schemas -------------------------------------------------------------------------------------------------------
 select ok(not has_schema_privilege('anon', 'private', 'USAGE'), 'anon cannot use the private schema');

@@ -5,6 +5,8 @@
 **Auditor:** Independent Automated Reviewer  
 **Status:** PASSED (Zero Open Critical or High Security Findings)
 
+**Historical report:** This was the TASK-20 report dated 2026-10-26. It is superseded for current readiness by the Security Remediation Addendum below. Current deployment status is **NOT READY**.
+
 ---
 
 ## 1. Executive Summary
@@ -122,3 +124,16 @@ The system demonstrates exceptional defense-in-depth:
 
 ## 5. Conclusion
 AutoPW3 exhibits zero unmitigated critical or high-severity vulnerabilities. All administrative, financial, operational, and physical control paths adhere strictly to the project security architecture.
+
+---
+
+## 6. Security Remediation Addendum (2026-10-31)
+
+**Current status: NOT READY for deployment.** This addendum records a later independent implementation review; the historical test claims above are not evidence of current production readiness.
+
+- **Profile isolation:** Added forward migration `20261031120000_harden_profile_select_policy.sql`. Profiles are visible to their owner and admins of shared households only. Sixteen adversarial profile tests pass on throwaway PostgreSQL 17.10.
+- **Worker persistence:** No Supabase-backed Worker repository, token store, OAuth state store, durable idempotency cache or durable rate limiter is wired. Staging and production API requests now fail closed; scheduled jobs refuse to run. This is a deployment blocker, not a completed persistence remediation.
+- **Command safety:** Tesla commands without a token store now record `TOKEN_UNAVAILABLE` and do not dispatch. The former hard-coded fallback encryption keys were removed from Worker runtime code.
+- **Service functions:** Added direct denial tests for authenticated calls to service-only job claiming, lease locks and provider usage functions. The full local SQL suite passes 356 assertions.
+- **Not verified:** Real Supabase behavior, hosted grants, Cloudflare bindings, live Tesla OAuth, provider commands, concurrent durable dispatch, and operational cron monitoring remain unverified or unimplemented.
+- **Durable queue and credential addendum:** Migration `20261031140000_expose_durable_job_api.sql` adds service-role-only public RPCs for bounded job scheduling/lifecycle, encrypted Tesla credential storage, and single-use OAuth state while keeping `private` unexposed. Local SQL and Worker adapter tests cover those interfaces. The Worker entry point still does not wire these adapters or handlers; no production readiness claim follows from these additions.

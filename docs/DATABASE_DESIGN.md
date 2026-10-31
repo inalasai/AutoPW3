@@ -39,7 +39,8 @@ erDiagram
   HOUSEHOLDS ||--o{ OAUTH_STATES : "pending OAuth"
 ```
 
-Unscoped tables: `job_locks` (named leases), `system_bootstrap` (one row). Both are server-only.
+Unscoped tables: `job_locks` (named leases), `system_bootstrap` (one row), and
+`worker_rate_limit_buckets` (hashed caller/window counters). All are server-only.
 
 ## 2. Tables
 
@@ -96,7 +97,9 @@ Constraints/indexes: `UNIQUE (site_id, sampled_at)`; btree `(site_id, sampled_at
 
 **telemetry_sync_state** `(site_id, stream text CHECK IN ('LIVE','HISTORY'), last_attempt_at, last_success_at, last_status CHECK IN ('SUCCESS','PARTIAL','FAILED','SKIPPED'), last_error_code text, cursor jsonb (history: last completed interval end), latest_sample_at, consecutive_failures int; PK (site_id, stream))`.
 
-**provider_usage_daily** (new) `(household_id, usage_day date (UTC), category text CHECK IN ('DATA','COMMAND','WAKE','STREAM','AUTH'), request_count int NOT NULL DEFAULT 0, error_count int NOT NULL DEFAULT 0, PK (household_id, usage_day, category))`. Updated only by `private.record_provider_call(...)`, which atomically checks month-to-date estimated spend against `household_settings.monthly_spend_cap_usd` and refuses over budget. Unit prices are Worker configuration, billing category is `UNVERIFIED` (D-023).
+**provider_usage_daily** (new) `(household_id, usage_day date (UTC), category text CHECK IN ('DATA','COMMAND','WAKE','STREAM','AUTH'), request_count int NOT NULL DEFAULT 0, error_count int NOT NULL DEFAULT 0, PK (household_id, usage_day, category))`. Updated only by `private.record_provider_call(...)`, which atomically records each successful or failed call and returns true when the counter row is inserted or updated. The database function does not enforce the monthly spend cap; budget enforcement remains an unresolved Worker responsibility. Unit prices are Worker configuration, billing category is `UNVERIFIED` (D-023).
+
+**worker_rate_limit_buckets** (new, migration 20261031140000) `(key_hash bytea, window_seconds int, window_started_at timestamptz, hit_count int, expires_at timestamptz; PK (key_hash, window_seconds, window_started_at))`. The worker stores only SHA-256 hashes of caller keys and enforces increments through an atomic, service-role-only RPC. This adapter is not yet wired into the Worker entry point.
 
 ### 2.4 Tariffs (decision 10, D-013)
 
@@ -132,6 +135,8 @@ Precedence and arithmetic: `docs/ENERGY_ACCOUNTING.md` §5. Irish rates in seeds
 
 **scheduled_jobs** (new) `(id, kind text, site_id null, dedupe_key text UNIQUE NOT NULL, run_at timestamptz, state text CHECK IN ('QUEUED','RUNNING','DONE','FAILED','DEAD'), attempts int, max_attempts int, lease_expires_at timestamptz, locked_by text, payload jsonb (no secrets), last_error text (sanitised), created_at, finished_at)`. Index `(state, run_at)`; partial index on `state = 'QUEUED'`. Kinds: `token_maintenance`, `sync_live`, `sync_history`, `rollup`, `retention`, `evaluate_rules`, `reconcile_command`, `reencrypt_credentials`.
 
+Migration `20261031140000_expose_durable_job_api.sql` adds narrowly scoped `public.worker_*` PostgREST wrappers while leaving `private` unexposed. All execute grants are service-role-only. `worker_schedule_due_jobs` creates bounded recurring slots and rotates capped pages to avoid permanent starvation in a shared-hosting deployment. `worker_enqueue_job` verifies site/household consistency. Claim uses the hardened `private.claim_jobs`; completion/failure is bound to `locked_by`. Durable Worker handlers are still pending because the application repository and encrypted token adapters are not implemented; therefore staging and production cron remain disabled.
+
 **job_locks** `(key text PK, owner text NOT NULL, lease_expires_at timestamptz NOT NULL)`. Named short leases (`token:<household>`, `fetch:live:<site>`).
 
 **audit_log** `(id bigint identity, household_id null, actor_type text CHECK IN ('USER','SYSTEM'), actor_user_id null, action text NOT NULL, target_type text, target_id text, metadata jsonb, request_id text, created_at)`. Append-only (no update/delete grants; trigger rejects). `metadata` is written through an allowlist per action and never contains tokens, JWTs or telemetry. Actions include `member.role_changed`, `member.removed`, `invitation.created/accepted/revoked`, `bootstrap.completed`, `tesla.connected/disconnected/reauth_needed`, `command.requested/confirmed/failed/unknown`, `rule.mode_changed`, `automation.paused/resumed`, `tariff.version_created`, `settings.changed`, `data.exported`, `data.deleted`.
@@ -150,7 +155,7 @@ Precedence and arithmetic: `docs/ENERGY_ACCOUNTING.md` §5. Irish rates in seeds
 | `public.set_rule_mode(rule_id, mode)` | `ACTIVE` only for ADMIN | READ_WRITE+ |
 | `private.claim_jobs(worker_id, max, lease_s)` | atomic claim with `FOR UPDATE SKIP LOCKED` (TASK-16/18 add handlers) | service role only |
 | `private.acquire_lock(key, owner, lease_s)`, `release_lock(...)` | lease locks via `INSERT … ON CONFLICT … WHERE lease_expires_at < now()` | service role only |
-| `private.record_provider_call(household, category, ok)` | atomic counter + cap check, returns allowed | service role only |
+| `private.record_provider_call(household, category, ok)` | atomically increments usage counters; returns whether a counter row was written | service role only |
 | `private.touch_audit(...)` | allowlisted audit insert | definer functions, service role |
 | triggers | last-admin, no-self-role-change, append-only tables, tariff version immutability, IANA timezone validation, `source = 'TESLA'` | n/a |
 

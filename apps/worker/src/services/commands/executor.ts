@@ -176,8 +176,8 @@ export async function executeDeviceCommand(
   let baseUrl = 'https://fleet-api.prd.eu.vn.cloud.tesla.com';
   let accessToken = 'mock-access-token';
 
-  if (intentRecord.providerMode === 'TESLA' && deps.tokenStore) {
-    const tokens = await deps.tokenStore.getTokens(householdId);
+  if (intentRecord.providerMode === 'TESLA') {
+    const tokens = await deps.tokenStore?.getTokens(householdId);
     if (!tokens || !tokens.accessToken) {
       const finishNow = clock.now().toISOString();
       const failedCmd = await deps.repo.updateCommand(siteId, commandId, {

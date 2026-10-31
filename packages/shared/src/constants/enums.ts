@@ -36,7 +36,7 @@ export type EnergyResolution = (typeof ENERGY_RESOLUTIONS)[number];
 export const COST_GRANULARITIES = ['day', 'month'] as const;
 export type CostGranularity = (typeof COST_GRANULARITIES)[number];
 
-export const BUDGET_STATES = ['OK', 'LOW', 'EXHAUSTED'] as const;
+export const BUDGET_STATES = ['OK', 'LOW', 'EXHAUSTED', 'UNKNOWN'] as const;
 export type BudgetState = (typeof BUDGET_STATES)[number];
 
 // --- sites and provider ---------------------------------------------------------------------------------------

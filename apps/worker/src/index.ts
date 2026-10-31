@@ -14,11 +14,20 @@ export default {
   },
 
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    if (env.ENVIRONMENT !== 'local' && env.ENVIRONMENT !== 'test') {
+      // Durable queue RPCs exist, but domain repositories, encrypted token storage and job handlers
+      // are not connected; do not run scheduled work against fresh process-local stores.
+      throw new Error('Scheduled jobs are disabled until durable storage is configured');
+    }
+    if (env.LOCAL_MOCKS !== 'true') {
+      throw new Error('Scheduled local mocks require LOCAL_MOCKS=true');
+    }
+    if (!env.TOKEN_ENCRYPTION_KEY) {
+      throw new Error('Scheduled jobs require TOKEN_ENCRYPTION_KEY');
+    }
+
     const repo = new InMemoryRepository();
-    const tokenStore = new InMemoryTokenStore(
-      env.TOKEN_ENCRYPTION_KEY ??
-        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    );
+    const tokenStore = new InMemoryTokenStore(env.TOKEN_ENCRYPTION_KEY);
     const teslaClient =
       env.PROVIDER_MODE !== 'mock' && env.TESLA_CLIENT_ID
         ? new TeslaClient()

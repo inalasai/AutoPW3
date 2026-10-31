@@ -7,6 +7,7 @@ import type {
   UpdateSiteRequest,
 } from '@autopw3/shared';
 import type { Repository } from '../db/repository';
+import type { IdentityRepository } from '../db/identity-repository';
 import { errorResponse, jsonResponse } from '../lib/errors';
 import type { VerifiedUser } from '../lib/jwt';
 
@@ -24,8 +25,9 @@ export async function handleRemoveMember(
   householdId: string,
   targetUserId: string,
   caller: VerifiedUser,
-  repo: Repository,
+  repo: Pick<IdentityRepository, 'removeMember'> & Partial<Pick<Repository, 'recordAuditEvent'>>,
   requestId: string,
+  databaseAudits = false,
 ): Promise<Response> {
   const res = await repo.removeMember(householdId, caller.userId, targetUserId);
   if (!res.success) {
@@ -46,15 +48,17 @@ export async function handleRemoveMember(
     return errorResponse('NOT_FOUND', 'Member not found', requestId);
   }
 
-  await repo.recordAuditEvent(householdId, {
-    action: 'member.removed',
-    actorType: 'USER',
-    actorUserId: caller.userId,
-    targetType: 'user',
-    targetId: targetUserId,
-    metadata: {},
-    requestId,
-  });
+  if (!databaseAudits && repo.recordAuditEvent) {
+    await repo.recordAuditEvent(householdId, {
+      action: 'member.removed',
+      actorType: 'USER',
+      actorUserId: caller.userId,
+      targetType: 'user',
+      targetId: targetUserId,
+      metadata: {},
+      requestId,
+    });
+  }
 
   return new Response(null, { status: 204, headers: { 'x-request-id': requestId } });
 }
@@ -63,23 +67,26 @@ export async function handleUpdateSettings(
   householdId: string,
   body: UpdateHouseholdSettingsRequest,
   caller: VerifiedUser,
-  repo: Repository,
+  repo: Pick<IdentityRepository, 'updateSettings'> & Partial<Pick<Repository, 'recordAuditEvent'>>,
   requestId: string,
+  databaseAudits = false,
 ): Promise<Response> {
   const settings = await repo.updateSettings(householdId, body);
   if (!settings) {
     return errorResponse('NOT_FOUND', 'Household not found', requestId);
   }
 
-  await repo.recordAuditEvent(householdId, {
-    action: 'settings.changed',
-    actorType: 'USER',
-    actorUserId: caller.userId,
-    targetType: 'household',
-    targetId: householdId,
-    metadata: { updatedFields: Object.keys(body) },
-    requestId,
-  });
+  if (!databaseAudits && repo.recordAuditEvent) {
+    await repo.recordAuditEvent(householdId, {
+      action: 'settings.changed',
+      actorType: 'USER',
+      actorUserId: caller.userId,
+      targetType: 'household',
+      targetId: householdId,
+      metadata: { updatedFields: Object.keys(body) },
+      requestId,
+    });
+  }
 
   return jsonResponse(settings, 200, requestId);
 }
@@ -88,23 +95,26 @@ export async function handleUpdateHousehold(
   householdId: string,
   body: UpdateHouseholdRequest,
   caller: VerifiedUser,
-  repo: Repository,
+  repo: Pick<IdentityRepository, 'updateHousehold'> & Partial<Pick<Repository, 'recordAuditEvent'>>,
   requestId: string,
+  databaseAudits = false,
 ): Promise<Response> {
   const hh = await repo.updateHousehold(householdId, body);
   if (!hh) {
     return errorResponse('NOT_FOUND', 'Household not found', requestId);
   }
 
-  await repo.recordAuditEvent(householdId, {
-    action: 'settings.changed',
-    actorType: 'USER',
-    actorUserId: caller.userId,
-    targetType: 'household',
-    targetId: householdId,
-    metadata: { updatedFields: Object.keys(body) },
-    requestId,
-  });
+  if (!databaseAudits && repo.recordAuditEvent) {
+    await repo.recordAuditEvent(householdId, {
+      action: 'settings.changed',
+      actorType: 'USER',
+      actorUserId: caller.userId,
+      targetType: 'household',
+      targetId: householdId,
+      metadata: { updatedFields: Object.keys(body) },
+      requestId,
+    });
+  }
 
   return jsonResponse(hh, 200, requestId);
 }
@@ -203,8 +213,9 @@ export async function handleDeleteMe(
 export async function handleLeaveHousehold(
   householdId: string,
   caller: VerifiedUser,
-  repo: Repository,
+  repo: Pick<IdentityRepository, 'leaveHousehold'> & Partial<Pick<Repository, 'recordAuditEvent'>>,
   requestId: string,
+  databaseAudits = false,
 ): Promise<Response> {
   const res = await repo.leaveHousehold(householdId, caller.userId);
   if (!res.success) {
@@ -218,15 +229,17 @@ export async function handleLeaveHousehold(
     return errorResponse('NOT_FOUND', 'Membership not found', requestId);
   }
 
-  await repo.recordAuditEvent(householdId, {
-    action: 'member.removed',
-    actorType: 'USER',
-    actorUserId: caller.userId,
-    targetType: 'user',
-    targetId: caller.userId,
-    metadata: { reason: 'left_voluntarily' },
-    requestId,
-  });
+  if (!databaseAudits && repo.recordAuditEvent) {
+    await repo.recordAuditEvent(householdId, {
+      action: 'member.removed',
+      actorType: 'USER',
+      actorUserId: caller.userId,
+      targetType: 'user',
+      targetId: caller.userId,
+      metadata: { reason: 'left_voluntarily' },
+      requestId,
+    });
+  }
 
   return new Response(null, { status: 204, headers: { 'x-request-id': requestId } });
 }

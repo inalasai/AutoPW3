@@ -57,11 +57,11 @@ In the Supabase Dashboard under **Authentication**:
 ### 2.4 Executing the First-Admin Bootstrap
 To establish initial ownership securely without race conditions:
 1. Complete registration for the owner's email address in the web application (e.g., `admin@example.com`) and confirm the email.
-2. Note the newly generated user UUID from the Supabase Auth dashboard (`<owner-user-id>`).
+2. Note the owner's confirmed email address, exactly as registered in Supabase Auth (`<owner-email>`).
 3. Connect with a trusted SQL console (Supabase SQL Editor or `psql` using `service_role`):
    ```sql
    SELECT private.bootstrap_first_admin(
-     '<owner-user-id>'::uuid,
+     '<owner-email>',
      'Primary Household',
      'UTC'
    );

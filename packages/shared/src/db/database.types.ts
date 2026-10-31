@@ -1463,6 +1463,14 @@ export type Database = {
         };
         Returns: undefined;
       };
+      update_household: {
+        Args: {
+          p_household_id: string;
+          p_name?: string | null;
+          p_timezone?: string | null;
+        };
+        Returns: { id: string; name: string; timezone: string }[];
+      };
     };
     Enums: {
       role_enum: "READ_ONLY" | "READ_WRITE" | "ADMIN";

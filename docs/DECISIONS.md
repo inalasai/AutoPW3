@@ -616,3 +616,38 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Proposed
 - **Decision:** Member invitations use random 256-bit entropy tokens (`crypto.getRandomValues`) with raw tokens displayed once to the inviter and stored exclusively as SHA-256 hashes (`token_hash`) in the database. Full GDPR Article 20 data portability is provided via sanitized JSON exports (`/households/{id}/export` and `/me/export`) with zero credentials or tokens leaked. Right to Erasure (Article 17) provides atomic, confirmed erasure requiring exact typed household name matching (`confirmName`) for household deletion and `confirm: true` for account deletion, with last-admin guardrails enforced.
 - **Rationale:** Docs `PRIVACY.md` and `SECURITY_MODEL.md`; satisfies privacy-by-design requirements without external SMTP infrastructure dependencies.
+
+## D-109 Fail closed on deployment until durable Worker adapters are complete (Security Remediation)
+- **Status:** Accepted for this remediation
+- **Decision:** Staging and production API requests must not use the current in-memory repository, token store, OAuth state, idempotency cache or rate limiter. Until durable PostgreSQL-backed adapters are connected, deployment API requests return `PROVIDER_UNAVAILABLE` and scheduled jobs throw a fixed, non-secret error. Deployment workflow jobs remain disabled unless the repository variable `AUTOPW3_DEPLOYMENT_ENABLED` is explicitly set to `true`. The scheduled trigger is removed until the durable dispatcher is wired.
+- **Rationale:** Ephemeral state can lose authorization data and encrypted Tesla credentials across requests or isolates, permit replay after restarts, and silently select mock behavior. Failing closed prevents an unusable or unsafe Worker from appearing live while preserving the PostgreSQL architecture.
+
+## D-110 Provider usage function reports whether it recorded a call (Job Function Hardening)
+- **Status:** Accepted
+- **Decision:** Keep the existing boolean function signature for migration re-application compatibility. `private.record_provider_call` returns whether its atomic insert/upsert wrote a usage counter row; it does not claim to return a budget decision. Monthly spend-cap enforcement remains a separate unresolved responsibility.
+- **Rationale:** Returning the `INSERT ... ON CONFLICT` row status defines the boolean result as the counter write outcome rather than an unconditional success or budget decision.
+
+## D-111 Narrow PostgREST wrappers for durable Worker jobs (Durable Job Processing)
+- **Status:** Accepted for local implementation
+- **Decision:** Keep the `private` schema unexposed. Provide narrowly scoped `public.worker_*` SECURITY DEFINER wrappers for job scheduling, enqueue, claim, owner-bound completion/failure, distributed locks, and provider usage. Revoke execution from `PUBLIC`, `anon`, and `authenticated`; grant only to `service_role`. The Worker invokes these RPCs with its server-only Supabase key. Production cron remains disabled until durable repository and token adapters plus real job handlers are connected.
+- **Rationale:** Supabase PostgREST exposes only the `public` schema in the current configuration, while exposing the full `private` schema would widen the API surface. Explicit wrappers preserve the existing private function boundary and make each privileged operation reviewable.
+
+## D-112 Use existing encrypted credential and OAuth tables for durable stores (Durable Job Processing)
+- **Status:** Accepted for local implementation
+- **Decision:** Implement service-role-only PostgREST adapters over the existing `tesla_credentials` and `oauth_states` tables. Encrypt token and PKCE verifier envelopes in the Worker; bind decrypted envelopes to the persisted household/user IDs; hash OAuth state in PostgreSQL and consume it with a single delete-returning operation. Keep these adapters unwired from deployment until the application repository, idempotency/rate-limit persistence and durable handlers are complete.
+- **Rationale:** The existing schemas already provide ciphertext, nonce, key version, expiry and single-use state support. Reusing them avoids duplicate secret tables while the deployment fail-closed boundary prevents partial storage from being presented as production-ready.
+
+## D-114 Atomic hashed rate limiting (Durable Job Processing)
+- **Status:** Accepted for local implementation
+- **Decision:** Persist rate-limit buckets in a server-only table keyed by a SHA-256 hash of the caller key and limit window. Enforce each increment with one atomic PostgreSQL upsert and expose it only through a service-role RPC. Keep the adapter unwired until the durable application repository is available.
+- **Rationale:** A process-local counter cannot enforce limits across Worker isolates or restarts, while persisting raw caller identifiers would add unnecessary sensitive data.
+
+## D-115 Keep Worker API and cron fail-closed until repository mutations and idempotency are transaction-safe (Stage 1 Durable Runtime)
+- **Status:** Accepted
+- **Decision:** Do not wire the service-role adapters into staging or production until the complete `Repository` contract has durable implementations with explicit tenant checks and multi-row mutations have safe transaction boundaries. Do not replace the existing idempotency cache with a separate claim/finalize record unless the business mutation is idempotent or is committed atomically with that record. Existing process-local implementations are allowed only in `ENVIRONMENT=test` or `ENVIRONMENT=local` with `LOCAL_MOCKS=true`.
+- **Rationale:** The current `Repository` contract spans identity, tariffs, commands, automation, telemetry and privacy operations. Several existing SQL functions are authenticated-user functions based on `auth.uid()` and cannot be safely called as service-role RPCs with an asserted actor ID. A standalone idempotency lease cannot tell whether a business mutation committed before a Worker crash, so expiring and replaying an unfinished request can duplicate side effects. Service-role adapters without those guarantees would bypass RLS without preserving the application security model.
+
+## D-116 Request-scoped authenticated PostgREST for the identity repository slice (Stage 1 implementation)
+- **Status:** Accepted
+- **Decision:** Construct the first durable identity repository only after the request JWT is verified. Forward that request's bearer with the Supabase anon key and keep the allowlisted service-role RPC transport in a separate, non-route module. Use RLS-protected PostgREST for reads and single-row profile/settings updates, existing authenticated SECURITY DEFINER functions for invitation and membership mutations, and a narrow authenticated `update_household` RPC to commit household metadata and its audit event together. Keep staging and production API traffic fail-closed until all repository domains and transactional idempotency are implemented.
+- **Rationale:** Authenticated requests must preserve `auth.uid()` and the existing RLS policy model. A service-role request bypasses RLS and cannot safely substitute a caller-supplied actor ID.
