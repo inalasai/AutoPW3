@@ -2,6 +2,13 @@
 
 This guide provides end-to-end instructions for deploying, configuring, and operating **AutoPW3** across both **Local Test / Development Environments** and **Live Production Environments**.
 
+> [!TIP]
+> **Looking for a simple, automated setup?**
+> See the [Beginner's Step-by-Step Deployment Guide](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/BEGINNER_INSTALLATION_GUIDE.md) with visual screenshots, or run the interactive Windows wizard:
+> ```powershell
+> npm run deploy:wizard
+> ```
+
 ---
 
 ## 1. Architectural Overview & Environment Matrix
