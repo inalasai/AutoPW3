@@ -162,7 +162,10 @@ export async function handleApiRequest(
     }
   }
 
-  const apiPath = url.pathname.replace(/^\/api\/v1/, '') || '/';
+  let apiPath = url.pathname.replace(/^\/api\/v1/, '') || '/';
+  if (apiPath === '/oauth/tesla/callback') {
+    apiPath = '/provider/tesla/callback';
+  }
 
   // 4. Match Route Spec
   const matched = matchRoute(request.method, apiPath);
