@@ -65,6 +65,9 @@ describe('Store and Repository Factory', () => {
       ALLOWED_ORIGINS: 'https://app.autopw3.com',
     });
 
+    expect(() => createRepository(incompleteProdEnv)).toThrow(
+      /Cannot initialize Repository: missing Supabase credentials/,
+    );
     expect(() => createTokenStore(incompleteProdEnv)).toThrow(
       /Cannot initialize TokenStore: missing Supabase credentials/,
     );

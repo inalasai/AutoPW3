@@ -116,10 +116,10 @@ describe('useLiveReading', () => {
     expect(first).not.toBeNull();
     await waitFor(() => {
       expect(result.current.status).toBe('error');
+      expect(result.current.result).toBe(first);
+      expect(result.current.error).toMatch(/last reading is kept/);
+      expect(result.current.error).not.toContain('secret');
     });
-    expect(result.current.result).toBe(first);
-    expect(result.current.error).toMatch(/last reading is kept/);
-    expect(result.current.error).not.toContain('secret');
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });

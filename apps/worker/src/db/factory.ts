@@ -13,9 +13,18 @@ const TEST_ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef012
  * otherwise falls back to InMemoryRepository for isolated local/test environments.
  */
 export function createRepository(env: Env): Repository {
+  const isStrict = env.ENVIRONMENT === 'production' || env.ENVIRONMENT === 'staging';
+
   if (env.SUPABASE_URL && env.SUPABASE_SECRET_KEY) {
     return new SupabaseRepository(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY);
   }
+
+  if (isStrict) {
+    throw new Error(
+      `Cannot initialize Repository: missing Supabase credentials in ${env.ENVIRONMENT}`,
+    );
+  }
+
   return new InMemoryRepository();
 }
 
