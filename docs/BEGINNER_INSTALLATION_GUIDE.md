@@ -28,7 +28,7 @@ Before running the wizard, make sure you have:
 
 When you create your project on Supabase, navigate to **Project Settings -> API**:
 
-![Supabase API Keys Dashboard](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/assets/supabase_setup_guide.jpg)
+![Supabase API Keys Dashboard](./assets/supabase_setup_guide.jpg)
 
 You will need three pieces of information from this screen:
 1. **Project URL:** Looks like `https://abcdefghijklm.supabase.co`. Click the green copy button next to it.
@@ -46,7 +46,7 @@ To connect your Tesla Powerwall, you need a free application registration on the
 3. Under **Step 1 (Registration)** & **Step 2 (Application Details)**: Enter an application name (e.g., `AutoPW3 Energy Management`) and description.
 4. Under **Step 3 (Client Details)**:
 
-![Tesla Fleet API Client Details Setup](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/assets/tesla_developer_portal_setup.png)
+![Tesla Fleet API Client Details Setup](./assets/tesla_developer_portal_setup.png)
 
 Fill out the fields as shown below:
 
@@ -81,7 +81,7 @@ npm run deploy:wizard
 
 ### What the Wizard Looks Like:
 
-![AutoPW3 Windows Deployment Wizard](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/assets/wizard_terminal_guide.jpg)
+![AutoPW3 Windows Deployment Wizard](./assets/wizard_terminal_guide.jpg)
 
 ### What to Enter at Each Prompt:
 
@@ -107,7 +107,7 @@ AutoPW3 requires 12 database tables to store energy readings, users, and tariffs
 
 1. In your [Supabase Dashboard](https://supabase.com/dashboard), click **SQL Editor** on the left menu.
 2. Click **New Query**.
-3. Open the file [`supabase/all-migrations-bundle.sql`](file:///d:/AI_Apps/AutoPW3/AutoPW3/supabase/all-migrations-bundle.sql) on your computer, copy all its text, and paste it into the Supabase SQL editor.
+3. Open the file [`supabase/all-migrations-bundle.sql`](../supabase/all-migrations-bundle.sql) on your computer, copy all its text, and paste it into the Supabase SQL editor.
 4. Click the green **Run** button.
 5. In 5 seconds, all tables, security policies, and functions are created!
 
@@ -117,7 +117,7 @@ AutoPW3 requires 12 database tables to store energy readings, users, and tariffs
 
 Once deployed, your service is live on the internet! Here is how you register and link your Powerwall:
 
-![AutoPW3 Registration and Tesla Connect Screen](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/assets/tesla_connect_flow.jpg)
+![AutoPW3 Registration and Tesla Connect Screen](./assets/tesla_connect_flow.jpg)
 
 ### Step A: Register Your Account
 1. Open your live site URL in your browser (e.g. `https://autopw3.<your-subdomain>.workers.dev/register`).

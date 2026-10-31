@@ -4,7 +4,7 @@ This guide provides end-to-end instructions for deploying, configuring, and oper
 
 > [!TIP]
 > **Looking for a simple, automated setup?**
-> See the [Beginner's Step-by-Step Deployment Guide](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/BEGINNER_INSTALLATION_GUIDE.md) with visual screenshots, or run the interactive Windows wizard:
+> See the [Beginner's Step-by-Step Deployment Guide](./BEGINNER_INSTALLATION_GUIDE.md) with visual screenshots, or run the interactive Windows wizard:
 > ```powershell
 > npm run deploy:wizard
 > ```
@@ -270,7 +270,7 @@ sequenceDiagram
 > ```powershell
 > npm run deploy:wizard
 > ```
-> This handles login, AES-GCM key generation, secret injection, building, and deployment automatically. See [`docs/BEGINNER_INSTALLATION_GUIDE.md`](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/BEGINNER_INSTALLATION_GUIDE.md) for full visual walkthrough.
+> This handles login, AES-GCM key generation, secret injection, building, and deployment automatically. See [`docs/BEGINNER_INSTALLATION_GUIDE.md`](./BEGINNER_INSTALLATION_GUIDE.md) for full visual walkthrough.
 
 > **Option B (Manual Commands):**
 > Follow the manual steps below.
@@ -458,14 +458,14 @@ pg_dump "$SUPABASE_DB_URL" --format=custom --file=autopw3_backup_$(date +%Y%m%d)
 # Restore into a recovery database
 pg_restore --clean --if-exists --no-owner --dbname="$RECOVERY_DB_URL" autopw3_backup_20261026.dump
 ```
-*(Reference: [docs/RECOVERY_GUIDE.md](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/RECOVERY_GUIDE.md))*
+*(Reference: [docs/RECOVERY_GUIDE.md](./RECOVERY_GUIDE.md))*
 
 ---
 
 ## 7. Operational Document Cross-Reference
 
-- [docs/DEVELOPMENT_SETUP.md](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/DEVELOPMENT_SETUP.md) — Local scripts, testing commands, and architecture rules.
-- [docs/DEPLOYMENT_RUNBOOK.md](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/DEPLOYMENT_RUNBOOK.md) — Production Cloudflare Workers and Supabase deployment runbook.
-- [docs/SECURITY_MODEL.md](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/SECURITY_MODEL.md) — Security boundaries, encryption at rest, and RLS policies.
-- [docs/DEVICE_CONTROL_SAFETY.md](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/DEVICE_CONTROL_SAFETY.md) — Safety barriers, forbidden commands, and D-015 read-back reconciliation.
-- [docs/CREDENTIALS.md](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/CREDENTIALS.md) — Secret handling rules and variable documentation.
+- [docs/DEVELOPMENT_SETUP.md](./DEVELOPMENT_SETUP.md) — Local scripts, testing commands, and architecture rules.
+- [docs/DEPLOYMENT_RUNBOOK.md](./DEPLOYMENT_RUNBOOK.md) — Production Cloudflare Workers and Supabase deployment runbook.
+- [docs/SECURITY_MODEL.md](./SECURITY_MODEL.md) — Security boundaries, encryption at rest, and RLS policies.
+- [docs/DEVICE_CONTROL_SAFETY.md](./DEVICE_CONTROL_SAFETY.md) — Safety barriers, forbidden commands, and D-015 read-back reconciliation.
+- [docs/CREDENTIALS.md](./CREDENTIALS.md) — Secret handling rules and variable documentation.
