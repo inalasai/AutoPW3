@@ -247,14 +247,16 @@ sequenceDiagram
 
 1. Log in to the [Tesla Developer Portal](https://developer.tesla.com/).
 2. Create an Application for AutoPW3:
-   - **Application Type:** Web Application (Third-Party Authorization Code Flow with PKCE).
+   - **OAuth Grant Type:** `Authorisation Code and Machine-to-Machine` (recommended for user access).
+   - **Allowed Origin URL(s):** `https://autopw3.yourdomain.com` (or `https://autopw3.<your-subdomain>.workers.dev`).
+   - **Allowed Redirect URI(s):** `https://autopw3.yourdomain.com/api/v1/oauth/tesla/callback` *(also supports `/api/v1/provider/tesla/callback`)*.
+   - **Allowed Returned URL(s):** *(Leave blank / optional)*.
    - **Allowed Scopes:**
      - `openid`
-     - `offline_access`
+     - `offline_access` (Required for persistent background token refresh)
+     - `user_data`
      - `energy_device_data` (Read live telemetry, power samples, and site information)
      - `energy_cmds` (Required for automation commands: backup reserve, operation modes)
-   - **Allowed Redirect URI:**
-     - `https://autopw3.yourdomain.com/api/v1/tesla/callback`
 3. Securely record:
    - `Client ID` (`TESLA_CLIENT_ID`)
    - `Client Secret` (`TESLA_CLIENT_SECRET`)

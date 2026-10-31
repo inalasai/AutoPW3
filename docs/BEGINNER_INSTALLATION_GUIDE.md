@@ -37,7 +37,39 @@ You will need three pieces of information from this screen:
 
 ---
 
-## 3. Running the Windows Deployment Wizard
+## 3. Creating Your Tesla Fleet API Application
+
+To connect your Tesla Powerwall, you need a free application registration on the Tesla Developer Portal:
+
+1. Sign in to the [Tesla Developer Portal](https://developer.tesla.com/) using the **same Tesla email account** that has access to your Powerwall.
+2. Click **Create Application**.
+3. Under **Step 1 (Registration)** & **Step 2 (Application Details)**: Enter an application name (e.g., `AutoPW3 Energy Management`) and description.
+4. Under **Step 3 (Client Details)**:
+
+![Tesla Fleet API Client Details Setup](file:///d:/AI_Apps/AutoPW3/AutoPW3/docs/assets/tesla_developer_portal_setup.png)
+
+Fill out the fields as shown below:
+
+| Field | Value to Enter | Why |
+| :--- | :--- | :--- |
+| **OAuth Grant Type** | 🔘 **Authorisation Code and Machine-to-Machine** *(default)* | Allows household members to securely sign in and authorize Powerwall access. |
+| **Allowed Origin URL(s)** | `https://autopw3.<your-subdomain>.workers.dev`<br>*(or `https://yourdomain.com` if using a custom domain)* | Your deployed website domain **without a trailing slash**. Click `+` to add `http://localhost:5173` if developing locally. |
+| **Allowed Redirect URI(s)** | `https://autopw3.<your-subdomain>.workers.dev/api/v1/oauth/tesla/callback`<br>*(or `https://yourdomain.com/api/v1/oauth/tesla/callback`)* | The exact URL where Tesla redirects back after you click "Allow". *(AutoPW3 also supports `/api/v1/provider/tesla/callback`).* |
+| **Allowed Returned URL(s)** | *(Leave blank / empty)* | This field is optional. |
+
+5. Under **Step 4 (API & Scopes)**:
+Select the following permissions required by AutoPW3:
+- ✅ **`openid`**
+- ✅ **`offline_access`** *(essential for 24/7 background telemetry sync & token refreshing)*
+- ✅ **`user_data`**
+- ✅ **`energy_device_data`** *(required to read live solar generation, battery SOC %, and grid flow)*
+- ✅ **`energy_cmds`** *(required to change backup reserve %, operational mode, or storm mode)*
+
+6. Finish creating the application. Tesla will display your **Client ID** and **Client Secret**. Keep these handy for the next step!
+
+---
+
+## 4. Running the Windows Deployment Wizard
 
 Open **PowerShell** on your Windows PC, navigate to your AutoPW3 folder, and run:
 
@@ -60,7 +92,7 @@ npm run deploy:wizard
 | **Step 3: Supabase URL** | `Enter your Supabase Project URL` | Paste your Supabase Project URL (e.g. `https://abcdefg.supabase.co`). |
 | **Step 3: Supabase Anon Key** | `Enter your Supabase 'anon' public API key` | Paste your `anon` key from the Supabase dashboard. |
 | **Step 3: Supabase Service Key** | `Enter your Supabase 'service_role' secret API key` | Paste your `service_role` key from the Supabase dashboard. |
-| **Step 3: Database Migrations** | `Would you like this script to attempt 'npx supabase db push'?` | Type `n` (No), unless you already use the Supabase CLI. *(See Step 4 below for the easy 1-click database setup)*. |
+| **Step 3: Database Migrations** | `Would you like this script to attempt 'npx supabase db push'?` | Type `n` (No), unless you already use the Supabase CLI. *(See Step 5 below for the easy 1-click database setup)*. |
 | **Step 4: Encryption Key** | Generates AES-256-GCM encryption key | Automatic. Generates a secure random 64-character key to protect your Tesla tokens. |
 | **Step 5: Tesla Client ID** | `Enter Tesla Client ID` | Paste the Client ID from developer.tesla.com (or press Enter if waiting for approval). |
 | **Step 5: Tesla Client Secret** | `Enter Tesla Client Secret` | Paste the Client Secret from developer.tesla.com (or press Enter if waiting for approval). |
@@ -69,7 +101,7 @@ npm run deploy:wizard
 
 ---
 
-## 4. Easy 1-Click Database Setup in Supabase
+## 5. Easy 1-Click Database Setup in Supabase
 
 AutoPW3 requires 12 database tables to store energy readings, users, and tariffs safely. We have combined all 12 into a single file for you!
 
@@ -81,7 +113,7 @@ AutoPW3 requires 12 database tables to store energy readings, users, and tariffs
 
 ---
 
-## 5. Registering and Activating Your Service
+## 6. Registering and Activating Your Service
 
 Once deployed, your service is live on the internet! Here is how you register and link your Powerwall:
 
