@@ -5,8 +5,10 @@
 export interface Env {
   /** Static web assets (the built apps/web). */
   ASSETS: Fetcher;
-  /** Deployment label: local | test | preview | production. */
+  /** Deployment label: local | test | preview | staging | production. */
   ENVIRONMENT: string;
+  /** Staging only: opt in to the durable GET /api/v1/me slice. Disabled unless exactly "true". */
+  STAGING_IDENTITY_READ_ENABLED?: string | undefined;
   /** Explicit opt-in for process-local mocks. Set only in local/test environments. */
   LOCAL_MOCKS?: string | undefined;
   /** Supabase project URL (e.g. https://xxx.supabase.co). */

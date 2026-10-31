@@ -50,6 +50,7 @@ export class SupabaseRpcClient {
       const response = await this.fetcher(`${this.rpcBaseUrl}${name}`, {
         method: 'POST',
         headers: this.headers,
+        redirect: 'error',
         body: JSON.stringify(body),
         signal: controller.signal,
       });

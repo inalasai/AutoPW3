@@ -9,6 +9,7 @@ describe('request-scoped PostgREST transport', () => {
       expect(headers.get('apikey')).toBe('test-public-value');
       expect(headers.get('authorization')).toBe('Bearer user-jwt-a');
       expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(init?.redirect).toBe('error');
       return Response.json([{ user_id: 'actor-a' }]);
     });
     const client = new AuthenticatedPostgrestClient(
@@ -47,6 +48,7 @@ describe('request-scoped PostgREST transport', () => {
   it('uses a separate service-role transport constructor', async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-system-value');
+      expect(init?.redirect).toBe('error');
       return Response.json({ ok: true });
     });
     const system = createPrivilegedRpcClient(

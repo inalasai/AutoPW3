@@ -32,6 +32,7 @@ import {
 import { verifySupabaseJwt, type JwtVerifyConfig, type VerifiedUser } from './jwt';
 import { defaultRateLimiter, determineRateLimit, type RateLimiter } from './rate-limiter';
 import { matchRoute } from './router';
+import { handleStagingIdentityRequest } from './staging-identity';
 
 // Route handlers
 import {
@@ -149,6 +150,10 @@ export async function handleApiRequest(
   const isDeployEnvironment = DEPLOY_ENVIRONMENTS.has(env.ENVIRONMENT);
   const isExplicitLocalMock =
     env.ENVIRONMENT === 'test' || (env.ENVIRONMENT === 'local' && env.LOCAL_MOCKS === 'true');
+
+  // This staging-only read constructs its own durable dependencies and never reaches legacy defaults.
+  const stagingIdentityResponse = await handleStagingIdentityRequest(request, env, requestId);
+  if (stagingIdentityResponse) return stagingIdentityResponse;
 
   // Production and staging are deliberately unavailable until durable PostgreSQL-backed adapters
   // for repository, tokens, OAuth state, idempotency and rate limiting are wired into the entry point.

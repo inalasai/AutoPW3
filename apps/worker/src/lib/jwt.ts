@@ -9,6 +9,8 @@ export interface JwtVerifyConfig {
   readonly supabaseUrl?: string | undefined;
   readonly issuer?: string | undefined;
   readonly jwksUrl?: string | undefined;
+  /** Optional recipient constraint; the staging identity slice requires authenticated. */
+  readonly audience?: string | undefined;
   /** In-memory test JWKS or public key for unit testing without network. */
   readonly testKeySet?: jose.JWTVerifyGetKey | CryptoKey | Uint8Array | undefined;
 }
@@ -82,7 +84,9 @@ export async function verifySupabaseJwt(
 
   const verifyOptions: jose.JWTVerifyOptions = {
     algorithms: ALLOWED_ALGORITHMS,
+    requiredClaims: ['exp'],
     ...(expectedIssuer ? { issuer: expectedIssuer } : {}),
+    ...(config.audience !== undefined ? { audience: config.audience } : {}),
   };
 
   // Perform cryptographic verification
@@ -94,6 +98,22 @@ export async function verifySupabaseJwt(
   }
 
   const payload = result.payload;
+
+  // JOSE checks audience membership, but a mixed array containing the expected string can pass.
+  // Validate the complete claim shape whenever this caller requires an audience.
+  if (config.audience !== undefined) {
+    const audience: unknown = payload.aud;
+    if (
+      !(typeof audience === 'string' && audience.length > 0) &&
+      !(
+        Array.isArray(audience) &&
+        audience.length > 0 &&
+        audience.every((value: unknown) => typeof value === 'string' && value.length > 0)
+      )
+    ) {
+      throw new Error('Invalid audience claim');
+    }
+  }
 
   if (!payload.sub || typeof payload.sub !== 'string') {
     throw new Error('Missing sub claim in token');

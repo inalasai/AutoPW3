@@ -1,6 +1,6 @@
 # apps/worker — Cloudflare Worker
 
-**Status:** Staging/production API and cron remain fail-closed because a complete PostgreSQL application repository, transaction-safe durable idempotency and production job handlers are not implemented or wired. In-memory API and cron mocks require `ENVIRONMENT=local` with `LOCAL_MOCKS=true` (tests use `ENVIRONMENT=test`). Durable job, token, OAuth and rate-limit adapters exist but are not selected by the Worker entry point. Live deployment is blocked. Test results are recorded in the current task handoff.
+**Status:** Production API and staging/production cron remain fail-closed. Staging has one disabled-by-default exception: `STAGING_IDENTITY_READ_ENABLED=true` permits only durable `GET /api/v1/me` and its GET-only preflight. It uses authenticated PostgREST and the durable rate limiter, requires stored identity data, and has no legacy fallback. All other staging API routes remain blocked until their durable dependencies and transaction-safe mutation idempotency are implemented. In-memory API and cron mocks require `ENVIRONMENT=local` with `LOCAL_MOCKS=true` (tests use `ENVIRONMENT=test`). Live deployment is blocked; hosted behavior remains unverified. See `docs/handoffs/STAGING-IDENTITY-READ.md` for this slice's verification results.
 
 ## Purpose
 The trusted backend: authenticated API, Tesla adapter, token handling, telemetry ingestion, device commands and scheduled automation. Enforces authorisation independently of the front end.

@@ -78,6 +78,7 @@ export class AuthenticatedPostgrestClient {
       const response = await this.fetcher(`${this.restUrl}${path}`, {
         method,
         headers,
+        redirect: 'error',
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: controller.signal,
       });

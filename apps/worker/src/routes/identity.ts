@@ -1,7 +1,7 @@
 import type { IdentityRepository } from '../db/identity-repository';
 import { errorResponse, jsonResponse } from '../lib/errors';
 import type { VerifiedUser } from '../lib/jwt';
-import type { Role } from '@autopw3/shared';
+import { MeResponseSchema, type Role } from '@autopw3/shared';
 
 interface InvitationUrlConfig {
   appBaseUrl: string | undefined;
@@ -50,28 +50,35 @@ function buildInvitationUrl(token: string, config: InvitationUrlConfig): string 
 
 export async function handleGetMe(
   user: VerifiedUser,
-  repo: IdentityRepository,
+  repo: Pick<IdentityRepository, 'getProfile' | 'getHouseholdMemberships'>,
   requestId: string,
+  options: { requirePersistedProfile?: boolean } = {},
 ): Promise<Response> {
   const profile = await repo.getProfile(user.userId);
+  if (options.requirePersistedProfile && !profile) {
+    return errorResponse('NOT_FOUND', 'Profile not found', requestId);
+  }
   const memberships = await repo.getHouseholdMemberships(user.userId);
 
-  return jsonResponse(
-    {
-      profile: profile ?? {
-        userId: user.userId,
-        displayName: user.email ?? null,
-        locale: 'en-IE',
-      },
-      memberships: memberships.map((m) => ({
-        householdId: m.householdId,
-        name: m.name,
-        role: m.role,
-      })),
+  const body = {
+    profile: profile ?? {
+      userId: user.userId,
+      displayName: user.email ?? null,
+      locale: 'en-IE',
     },
-    200,
-    requestId,
-  );
+    memberships: memberships.map((m) => ({
+      householdId: m.householdId,
+      name: m.name,
+      role: m.role,
+    })),
+  };
+  if (
+    options.requirePersistedProfile &&
+    (profile?.userId !== user.userId || !MeResponseSchema.safeParse(body).success)
+  ) {
+    return errorResponse('PROVIDER_UNAVAILABLE', 'Identity data is unavailable', requestId);
+  }
+  return jsonResponse(body, 200, requestId);
 }
 
 export async function handleGetHousehold(
