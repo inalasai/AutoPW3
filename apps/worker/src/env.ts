@@ -9,6 +9,8 @@ export interface Env {
   ENVIRONMENT: string;
   /** Staging only: opt in to the durable GET /api/v1/me slice. Disabled unless exactly "true". */
   STAGING_IDENTITY_READ_ENABLED?: string | undefined;
+  /** Staging only, read-only Tesla OAuth connect/callback. Disabled unless exactly "true". */
+  STAGING_TESLA_OAUTH_ENABLED?: string | undefined;
   /** Explicit opt-in for process-local mocks. Set only in local/test environments. */
   LOCAL_MOCKS?: string | undefined;
   /** Supabase project URL (e.g. https://xxx.supabase.co). */
@@ -33,6 +35,8 @@ export interface Env {
   TESLA_CLIENT_SECRET?: string | undefined;
   /** Tesla Fleet API OAuth Redirect URI. */
   TESLA_REDIRECT_URI?: string | undefined;
+  /** Explicit NA/EU Fleet audience. No implicit region fallback. */
+  TESLA_FLEET_API_BASE_URL?: string | undefined;
   /** Secret key for encrypting stored Tesla credentials at rest (32 bytes hex/base64). */
   TOKEN_ENCRYPTION_KEY?: string | undefined;
 }

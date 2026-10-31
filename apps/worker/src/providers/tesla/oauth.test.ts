@@ -124,6 +124,7 @@ describe('Tesla OAuth 2.0 Integration', () => {
           redirectUri,
           code: 'auth-code-123',
           codeVerifier: 'test-verifier',
+          audience: 'https://fleet-api.prd.na.vn.cloud.tesla.com',
         },
         mockFetch,
       );
@@ -152,6 +153,7 @@ describe('Tesla OAuth 2.0 Integration', () => {
             redirectUri,
             code: 'invalid-code',
             codeVerifier: 'verifier',
+            audience: 'https://fleet-api.prd.na.vn.cloud.tesla.com',
           },
           mockFetch,
         ),

@@ -9,7 +9,8 @@ RLS plus existing authenticated SQL functions. `supabase-rpc.ts` remains the ser
 The durable identity slice is selected after JWT verification when `SUPABASE_URL` and
 `SUPABASE_ANON_KEY` are configured. Staging and production API requests remain fail-closed until the whole
 application repository, durable idempotency and other durable stores are integrated, apart from the
-explicitly gated staging-only `GET /api/v1/me` slice in `lib/staging-identity.ts`. That path always
+explicitly gated staging-only `GET /api/v1/me` slice in `lib/staging-identity.ts` and the separate
+read-only OAuth gate in `lib/staging-tesla-oauth.ts`. That path always
 constructs an authenticated identity repository and fails closed if configuration is missing. Other repository
 domains remain in memory only in explicitly configured local/test execution and are not production-ready,
 apart from the separate site-read foundation described below.

@@ -1,3 +1,8 @@
+import { z } from 'zod';
+import { decodeJwt } from 'jose';
+import { teslaJson } from './http';
+import { requireTeslaFleetOrigin } from './region';
+
 /**
  * Tesla Fleet API OAuth 2.0 Client Module
  *
@@ -7,12 +12,7 @@
 
 export const TESLA_AUTH_URL = 'https://auth.tesla.com/oauth2/v3/authorize';
 export const TESLA_TOKEN_URL = 'https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token';
-export const DEFAULT_ENERGY_SCOPES = [
-  'openid',
-  'offline_access',
-  'energy_device_data',
-  'energy_cmds',
-];
+export const DEFAULT_ENERGY_SCOPES = ['openid', 'offline_access', 'energy_device_data'];
 
 export interface OAuthStatePayload {
   readonly state: string;
@@ -127,6 +127,8 @@ export async function buildAuthorizeUrl(options: {
     state: options.state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
+    require_requested_scopes: 'true',
+    prompt_missing_scopes: 'true',
   });
 
   return {
@@ -145,7 +147,7 @@ export async function exchangeAuthorizationCode(
     readonly redirectUri: string;
     readonly code: string;
     readonly codeVerifier: string;
-    readonly audience?: string | undefined;
+    readonly audience: string;
   },
   fetcher: typeof fetch = fetch,
 ): Promise<TeslaTokenResponse> {
@@ -158,38 +160,71 @@ export async function exchangeAuthorizationCode(
     code_verifier: options.codeVerifier,
   });
 
-  if (options.audience) {
-    body.set('audience', options.audience);
-  }
-
-  let res: Response;
+  body.set('audience', requireTeslaFleetOrigin(options.audience));
   try {
-    res = await fetcher(TESLA_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        accept: 'application/json',
+    const json = await teslaJson(
+      TESLA_TOKEN_URL,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+        },
+        body: body.toString(),
       },
-      body: body.toString(),
-    });
-  } catch (err) {
-    throw new TeslaOAuthError(
-      'network_error',
-      `Failed to contact Tesla token endpoint: ${err instanceof Error ? err.message : String(err)}`,
-      502,
+      fetcher,
     );
+    const parsed = z
+      .object({
+        access_token: z.string().min(1).max(32768),
+        refresh_token: z.string().min(1).max(32768),
+        expires_in: z
+          .number()
+          .int()
+          .positive()
+          .max(31 * 86400),
+        token_type: z.literal('Bearer'),
+        scope: z.string().min(1).max(2048).optional(),
+      })
+      .parse(json);
+    // Tesla documents access_token.scp as the granted-scope authority. Tokens originate
+    // directly from its fixed TLS token endpoint; this decode never authenticates an app actor.
+    let tokenScopes: string | undefined;
+    if (parsed.access_token.split('.').length === 3) {
+      const claim = decodeJwt(parsed.access_token)['scp'];
+      tokenScopes =
+        typeof claim === 'string'
+          ? claim
+          : Array.isArray(claim) &&
+              claim.length > 0 &&
+              claim.every((value) => typeof value === 'string' && !value.includes(' '))
+            ? claim.join(' ')
+            : undefined;
+      if (!tokenScopes) throw new Error('Missing granted scopes');
+    }
+    const scope = tokenScopes ?? parsed.scope;
+    if (!scope) throw new Error('Missing granted scopes');
+    if (
+      parsed.scope &&
+      tokenScopes &&
+      [...new Set(parsed.scope.split(' '))].sort().join(' ') !==
+        [...new Set(tokenScopes.split(' '))].sort().join(' ')
+    ) {
+      throw new Error('Inconsistent granted scopes');
+    }
+    return { ...parsed, scope };
+  } catch {
+    throw new TeslaOAuthError('authorization_exchange_failed', undefined, 502);
   }
+}
 
-  const json = (await res.json()) as Record<string, unknown>;
-
-  if (!res.ok) {
-    const error = String(json['error'] ?? 'unknown_error');
-    const description =
-      typeof json['error_description'] === 'string' ? json['error_description'] : undefined;
-    throw new TeslaOAuthError(error, description, res.status);
-  }
-
-  return json as unknown as TeslaTokenResponse;
+export function validateReadOnlyTeslaScopes(scope: string): void {
+  const scopes = scope.split(' ');
+  if (
+    scopes.some((value) => !DEFAULT_ENERGY_SCOPES.includes(value)) ||
+    DEFAULT_ENERGY_SCOPES.some((value) => !scopes.includes(value))
+  )
+    throw new TeslaOAuthError('invalid_granted_scopes');
 }
 
 /**

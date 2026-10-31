@@ -59,21 +59,54 @@ export class SupabaseTokenStore implements TokenStore {
   }
 
   async saveTokens(householdId: string, tokens: DecryptedTokens): Promise<void> {
+    await this.persistTokens(householdId, tokens);
+  }
+
+  /** Actor is obtained only from authenticated, encrypted, consumed OAuth state. */
+  async saveTokensForOAuth(
+    householdId: string,
+    userId: string,
+    tokens: DecryptedTokens,
+  ): Promise<void> {
+    z.string().uuid().parse(userId);
+    z.string().uuid().parse(householdId);
+    await this.persistTokens(householdId, tokens, userId);
+  }
+
+  async isOAuthAdministrator(householdId: string, userId: string): Promise<boolean> {
+    return (
+      (await this.rpc.call<boolean>('worker_validate_oauth_actor', {
+        p_household_id: householdId,
+        p_user_id: userId,
+      })) === true
+    );
+  }
+
+  private async persistTokens(
+    householdId: string,
+    tokens: DecryptedTokens,
+    userId?: string,
+  ): Promise<void> {
     const payload = await encryptTokenPayload(
       JSON.stringify({ householdId, tokens }),
       this.activeKey(),
       this.activeKeyVersion,
     );
-    await this.rpc.call<boolean>('worker_save_tesla_credentials', {
-      p_household_id: householdId,
-      p_key_id: `v${payload.keyVersion}`,
-      p_nonce: toPostgresBytea(fromBase64(payload.iv)),
-      p_ciphertext: toPostgresBytea(fromBase64(payload.ciphertext)),
-      p_version: payload.keyVersion,
-      p_scopes: tokens.scope.split(' ').filter(Boolean),
-      p_fleet_api_base_url: tokens.regionBaseUrl,
-      p_access_expires_at: new Date(tokens.expiresAt * 1000).toISOString(),
-    });
+    const saved = await this.rpc.call<boolean>(
+      userId ? 'worker_save_tesla_credentials_for_oauth' : 'worker_save_tesla_credentials',
+      {
+        p_household_id: householdId,
+        ...(userId ? { p_user_id: userId } : {}),
+        p_key_id: `v${payload.keyVersion}`,
+        p_nonce: toPostgresBytea(fromBase64(payload.iv)),
+        p_ciphertext: toPostgresBytea(fromBase64(payload.ciphertext)),
+        p_version: payload.keyVersion,
+        p_scopes: tokens.scope.split(' ').filter(Boolean),
+        p_fleet_api_base_url: tokens.regionBaseUrl,
+        p_access_expires_at: new Date(tokens.expiresAt * 1000).toISOString(),
+      },
+    );
+    if (saved !== true) throw new Error('Tesla credential persistence failed');
   }
 
   async getTokens(householdId: string): Promise<DecryptedTokens | null> {
@@ -199,7 +232,7 @@ export class SupabaseOAuthStateStore implements OAuthStateStore {
     const versionedCiphertext = new Uint8Array(versionPrefix.length + ciphertext.length);
     versionedCiphertext.set(versionPrefix);
     versionedCiphertext.set(ciphertext, versionPrefix.length);
-    await this.rpc.call<boolean>('worker_save_oauth_state', {
+    const saved = await this.rpc.call<boolean>('worker_save_oauth_state', {
       p_state: payload.state,
       p_household_id: payload.householdId,
       p_user_id: payload.userId,
@@ -207,6 +240,7 @@ export class SupabaseOAuthStateStore implements OAuthStateStore {
       p_pkce_nonce: toPostgresBytea(fromBase64(encrypted.iv)),
       p_expires_at: new Date(payload.expiresAt).toISOString(),
     });
+    if (saved !== true) throw new Error('OAuth state persistence failed');
   }
 
   async consumeState(state: string): Promise<OAuthStatePayload | null> {

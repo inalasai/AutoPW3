@@ -33,6 +33,7 @@ import { verifySupabaseJwt, type JwtVerifyConfig, type VerifiedUser } from './jw
 import { defaultRateLimiter, determineRateLimit, type RateLimiter } from './rate-limiter';
 import { matchRoute } from './router';
 import { handleStagingIdentityRequest } from './staging-identity';
+import { handleStagingTeslaOAuthRequest } from './staging-tesla-oauth';
 
 // Route handlers
 import {
@@ -154,6 +155,8 @@ export async function handleApiRequest(
   // This staging-only read constructs its own durable dependencies and never reaches legacy defaults.
   const stagingIdentityResponse = await handleStagingIdentityRequest(request, env, requestId);
   if (stagingIdentityResponse) return stagingIdentityResponse;
+  const stagingOAuthResponse = await handleStagingTeslaOAuthRequest(request, env, requestId);
+  if (stagingOAuthResponse) return stagingOAuthResponse;
 
   // Production and staging are deliberately unavailable until durable PostgreSQL-backed adapters
   // for repository, tokens, OAuth state, idempotency and rate limiting are wired into the entry point.

@@ -202,6 +202,44 @@ async function verifyConcurrentCronScheduling(client) {
   }
 }
 
+// The first callback holds DELETE's row lock while the second callback attempts consume.
+async function verifyConcurrentOAuthConsumption(client) {
+  const workerA = await connect('security_tests');
+  const workerB = await connect('security_tests');
+  const state = 'concurrent-oauth-state-fixture-00000001';
+  try {
+    await client.query('select tests.world()');
+    await client.query(
+      `select public.worker_save_oauth_state($1, tests.id('h1'), tests.id('alice'),
+      decode(repeat('bb',17),'hex'), decode(repeat('00',12),'hex'), now()+interval '5 minutes')`,
+      [state],
+    );
+    await workerA.query('begin');
+    await workerA.query('set local role service_role');
+    const first = await workerA.query('select * from public.worker_consume_oauth_state($1)', [
+      state,
+    ]);
+    await workerB.query('begin');
+    await workerB.query('set local role service_role');
+    const pending = workerB.query('select * from public.worker_consume_oauth_state($1)', [state]);
+    await workerA.query('commit');
+    const second = await pending;
+    await workerB.query('commit');
+    if (first.rowCount !== 1 || second.rowCount !== 0)
+      throw new Error('OAuth state consumed more than once');
+    totalOk += 1;
+    console.log(
+      'ok    concurrent OAuth callbacks: one durable state consumer across two connections',
+    );
+  } finally {
+    await workerA.query('rollback');
+    await workerB.query('rollback');
+    await workerA.end();
+    await workerB.end();
+    await client.query('select tests.clear()');
+  }
+}
+
 // Rows of every statement result, flattened to the TAP lines they contain.
 function tapLines(result) {
   const results = Array.isArray(result) ? result : [result];
@@ -297,6 +335,13 @@ try {
   } catch (err) {
     hardFailures += 1;
     console.error(`FAIL  concurrent cron scheduling: ${err.message}`);
+  }
+
+  try {
+    await verifyConcurrentOAuthConsumption(client);
+  } catch (err) {
+    hardFailures += 1;
+    console.error(`FAIL  concurrent OAuth callbacks: ${err.message}`);
   }
 
   // The policies in the database must equal the manifest in docs/RLS_POLICY_MATRIX.md.

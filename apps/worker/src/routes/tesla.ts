@@ -12,9 +12,13 @@ import {
   buildAuthorizeUrl,
   exchangeAuthorizationCode,
   generateCodeVerifier,
+  validateReadOnlyTeslaScopes,
+  type OAuthStatePayload,
   type OAuthStateStore,
 } from '../providers/tesla/oauth';
 import type { TokenStore } from '../services/tokens/store';
+import type { DecryptedTokens } from '../services/tokens/store';
+import { requireTeslaFleetOrigin } from '../providers/tesla/region';
 
 export async function handleConnectTesla(
   householdId: string,
@@ -74,6 +78,43 @@ export async function handleTeslaCallback(
   requestId: string,
   fetcher: typeof fetch = fetch,
 ): Promise<Response> {
+  return completeTeslaAuthorization(
+    query,
+    env,
+    stateStore,
+    {
+      authorize: async (state) =>
+        (await repo.getMembership(state.householdId, state.userId))?.role === 'ADMIN',
+      persist: async (state, tokens) => {
+        await tokenStore.saveTokens(state.householdId, tokens);
+        await repo.setTeslaLink(state.householdId, {
+          state: 'ACTIVE',
+          scopes: tokens.scope.split(' '),
+          lastRefreshAt: new Date().toISOString(),
+        });
+      },
+    },
+    teslaClient,
+    requestId,
+    fetcher,
+  );
+}
+
+/** Callback authority comes exclusively from consumed state, never from query household/actor IDs. */
+export interface TeslaOAuthCompletion {
+  authorize(state: OAuthStatePayload): Promise<boolean>;
+  persist(state: OAuthStatePayload, tokens: DecryptedTokens): Promise<void>;
+}
+
+export async function completeTeslaAuthorization(
+  query: { code?: string; error?: string; state: string },
+  env: Env,
+  stateStore: OAuthStateStore,
+  completion: TeslaOAuthCompletion,
+  teslaClient: ITeslaClient,
+  requestId: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Response> {
   const { code, state } = query;
 
   const oauthState = await stateStore.consumeState(state);
@@ -86,11 +127,22 @@ export async function handleTeslaCallback(
     );
   }
 
+  if (!(await completion.authorize(oauthState))) {
+    return errorResponse(
+      'FORBIDDEN',
+      'Tesla connection requires a current household administrator',
+      requestId,
+    );
+  }
+  if (query.error || !code) {
+    return errorResponse('VALIDATION_FAILED', 'Tesla authorization was not granted', requestId);
+  }
+
   const clientId = env.TESLA_CLIENT_ID;
   const clientSecret = env.TESLA_CLIENT_SECRET;
   const redirectUri = env.TESLA_REDIRECT_URI;
 
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!clientId || !clientSecret || !redirectUri || !env.TESLA_FLEET_API_BASE_URL) {
     return errorResponse(
       'PROVIDER_UNAVAILABLE',
       'Tesla OAuth credentials missing on server',
@@ -98,53 +150,39 @@ export async function handleTeslaCallback(
     );
   }
 
-  let tokenData;
   try {
-    tokenData = await exchangeAuthorizationCode(
+    const audience = requireTeslaFleetOrigin(env.TESLA_FLEET_API_BASE_URL);
+    const tokenData = await exchangeAuthorizationCode(
       {
         clientId,
         clientSecret,
         redirectUri,
         code,
         codeVerifier: oauthState.codeVerifier,
+        audience,
       },
       fetcher,
     );
-  } catch (err) {
+    validateReadOnlyTeslaScopes(tokenData.scope);
+    const regionInfo = await teslaClient.getRegion(tokenData.access_token, audience);
+    if (requireTeslaFleetOrigin(regionInfo.fleetApiBaseUrl) !== audience) {
+      throw new Error('Tesla region does not match configured audience');
+    }
+    await completion.persist(oauthState, {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: Math.floor(Date.now() / 1000) + tokenData.expires_in,
+      tokenType: tokenData.token_type,
+      scope: tokenData.scope,
+      regionBaseUrl: regionInfo.fleetApiBaseUrl,
+    });
+  } catch {
     return errorResponse(
-      'VALIDATION_FAILED',
-      `Failed to exchange Tesla authorization code: ${err instanceof Error ? err.message : String(err)}`,
+      'PROVIDER_UNAVAILABLE',
+      'Tesla authorization could not be completed; reconnect to try again',
       requestId,
     );
   }
-
-  // Discover region & fleetApiBaseUrl
-  let regionBaseUrl = 'https://fleet-api.prd.na.vn.cloud.tesla.com';
-  try {
-    const regionInfo = await teslaClient.getRegion(tokenData.access_token);
-    regionBaseUrl = regionInfo.fleetApiBaseUrl;
-  } catch {
-    // Fall back to default
-  }
-
-  // Persist encrypted tokens (Operation S4)
-  const expiresAt = Math.floor(Date.now() / 1000) + (tokenData.expires_in || 28800);
-  await tokenStore.saveTokens(oauthState.householdId, {
-    accessToken: tokenData.access_token,
-    refreshToken: tokenData.refresh_token,
-    expiresAt,
-    tokenType: tokenData.token_type,
-    scope: tokenData.scope,
-    regionBaseUrl,
-  });
-
-  // Update repository link state
-  const scopesArray = tokenData.scope.split(' ').filter(Boolean);
-  await repo.setTeslaLink(oauthState.householdId, {
-    state: 'ACTIVE',
-    scopes: scopesArray,
-    lastRefreshAt: new Date().toISOString(),
-  });
 
   // 302 redirect back to the app settings per contract §2.3
   return new Response(null, {

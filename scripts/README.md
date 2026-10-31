@@ -8,3 +8,5 @@ Small, documented scripts for development and operations (for example key genera
 - be safe to re-run, and say so if it is not.
 
 Prefer npm scripts in the root `package.json` for common commands.
+
+**Phase 2 status:** `db-test.mjs` adds a two-connection OAuth consume check alongside the existing job-claim and cron-scheduling checks. It still runs only against its temporary local PostgreSQL.

@@ -5,7 +5,7 @@ The durable Supabase rate limiter hashes caller scope before invoking an atomic 
 default limiter remains in-memory only for explicit local/test use. In-memory API fallback requires
 `ENVIRONMENT=local` plus `LOCAL_MOCKS=true` (or the explicit `test` environment). Production and staging
 API traffic stay disabled until the full durable repository and transaction-safe idempotency are wired
-with the remaining durable adapters, with one explicit staging exception.
+with the remaining durable adapters, with independent explicit staging identity and read-only OAuth exceptions.
 
 **Status:** `staging-identity.ts` handles only exact `GET /api/v1/me` and its GET-only CORS preflight
 when `ENVIRONMENT=staging` and `STAGING_IDENTITY_READ_ENABLED=true`. It selects no process-local stores,
@@ -17,3 +17,5 @@ is enabled in deployment configuration. Production and scheduled execution remai
 The staging identity verifier explicitly requires audience `authenticated`, as a string or within a
 nonempty array of nonempty strings. Missing, incorrect and malformed audiences fail before rate
 limiting or user reads. Audience validation remains opt-in for other callers of the shared verifier.
+
+**OAuth status:** `staging-tesla-oauth.ts` permits only exact POST connect and GET callback under `STAGING_TESLA_OAUTH_ENABLED=true`. It reuses `staging-config.ts` (extracted unchanged from identity), authenticated membership reads, durable rate limiting, encrypted state and tokens. No legacy dependencies enter this path. See [Phase 2 handoff](../../../../docs/handoffs/PHASE-2-DURABLE-TESLA-OAUTH.md).

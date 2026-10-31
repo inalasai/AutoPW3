@@ -1,6 +1,8 @@
 import { normalisePowerReading } from '@autopw3/domain';
 import type { OperationMode, PersistedPowerSample } from '@autopw3/shared';
 import type { TeslaRawEnergyHistory, TeslaRawLiveStatus, TeslaRawSiteInfo } from './raw-types';
+import { teslaJson } from './http';
+import { requireTeslaFleetOrigin } from './region';
 
 export const DEFAULT_TESLA_API_BASE_URL = 'https://fleet-api.prd.na.vn.cloud.tesla.com';
 
@@ -59,7 +61,10 @@ export interface DiscoveredSite {
 }
 
 export interface ITeslaClient {
-  getRegion(accessToken: string): Promise<{ region: string; fleetApiBaseUrl: string }>;
+  getRegion(
+    accessToken: string,
+    initialBaseUrl?: string,
+  ): Promise<{ region: string; fleetApiBaseUrl: string }>;
   listProducts(baseUrl: string, accessToken: string): Promise<readonly DiscoveredSite[]>;
   getSiteInfo(baseUrl: string, siteId: string, accessToken: string): Promise<TeslaRawSiteInfo>;
   getLiveStatus(baseUrl: string, siteId: string, accessToken: string): Promise<TeslaRawLiveStatus>;
@@ -144,14 +149,25 @@ export class TeslaClient implements ITeslaClient {
    * Discovers the user's region and corresponding fleet-api base URL (S8).
    * Calls GET /api/1/users/region.
    */
-  async getRegion(accessToken: string): Promise<{ region: string; fleetApiBaseUrl: string }> {
-    const url = `${DEFAULT_TESLA_API_BASE_URL}/api/1/users/region`;
-    const data = await this.executeRequest<{
+  async getRegion(
+    accessToken: string,
+    initialBaseUrl = DEFAULT_TESLA_API_BASE_URL,
+  ): Promise<{ region: string; fleetApiBaseUrl: string }> {
+    const url = `${requireTeslaFleetOrigin(initialBaseUrl)}/api/1/users/region`;
+    const data = (await teslaJson(
+      url,
+      { headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' } },
+      this.fetcher,
+    )) as {
       response?: { region?: string; fleet_api_base_url?: string };
-    }>(url, accessToken);
+    };
 
-    const region = data.response?.region ?? 'na';
-    const fleetApiBaseUrl = data.response?.fleet_api_base_url ?? DEFAULT_TESLA_API_BASE_URL;
+    const region = data?.response?.region;
+    const baseUrl = data?.response?.fleet_api_base_url;
+    if (typeof region !== 'string' || !region || typeof baseUrl !== 'string') {
+      throw new Error('Invalid Tesla region response');
+    }
+    const fleetApiBaseUrl = requireTeslaFleetOrigin(baseUrl);
 
     return { region, fleetApiBaseUrl };
   }

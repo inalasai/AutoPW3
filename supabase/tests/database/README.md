@@ -10,3 +10,5 @@ staging `/me` slice under authenticated roles, including unrelated households an
 `142_authenticated_site_reads.test.sql` adds 24 local authenticated RLS assertions for site metadata,
 household membership, cross-household denial, UUID cursor pagination, empty households and revocation.
 The tests reuse existing tables and policies; no migration or permission change is required.
+
+**Phase 2:** `143_durable_tesla_oauth.test.sql` adds 22 assertions for RPC grants, current ADMIN authority, cross-household denial, scopes, approved origins and audit identity. The runner also checks single-use OAuth consumption across two PostgreSQL connections.

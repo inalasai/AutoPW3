@@ -14,6 +14,8 @@ export type PrivilegedRpcName =
   | 'worker_release_lock'
   | 'worker_save_oauth_state'
   | 'worker_save_tesla_credentials'
+  | 'worker_save_tesla_credentials_for_oauth'
+  | 'worker_validate_oauth_actor'
   | 'worker_schedule_due_jobs';
 
 export interface PrivilegedRpcClient {
@@ -34,6 +36,8 @@ const PRIVILEGED_RPC_NAMES: ReadonlySet<string> = new Set([
   'worker_release_lock',
   'worker_save_oauth_state',
   'worker_save_tesla_credentials',
+  'worker_save_tesla_credentials_for_oauth',
+  'worker_validate_oauth_actor',
   'worker_schedule_due_jobs',
 ]);
 

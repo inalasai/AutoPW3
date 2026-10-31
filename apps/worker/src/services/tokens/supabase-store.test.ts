@@ -11,6 +11,30 @@ function getRequestBody(init: RequestInit | undefined): Record<string, unknown> 
 }
 
 describe('SupabaseTokenStore', () => {
+  it.each(['', 'not-a-uuid'])(
+    'never selects the unscoped save RPC for invalid OAuth actor %s',
+    async (userId) => {
+      const fetcher = vi.fn<typeof fetch>();
+      const store = new SupabaseTokenStore(
+        'https://project.supabase.co',
+        'fixture-service',
+        createEncryptionKey(),
+        1,
+        fetcher,
+      );
+      await expect(
+        store.saveTokensForOAuth(crypto.randomUUID(), userId, {
+          accessToken: 'fixture-access',
+          refreshToken: 'fixture-refresh',
+          expiresAt: 1234567890,
+          tokenType: 'Bearer',
+          scope: 'openid offline_access energy_device_data',
+          regionBaseUrl: 'https://fleet-api.prd.eu.vn.cloud.tesla.com',
+        }),
+      ).rejects.toThrow();
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
   it('round-trips only an encrypted token envelope and uses the database lease functions', async () => {
     const householdId = crypto.randomUUID();
     const now = Math.floor(Date.now() / 1000);

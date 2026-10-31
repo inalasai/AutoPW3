@@ -22,6 +22,7 @@ function makeTestEnv(overrides: Partial<Env> = {}): Env {
     ALLOWED_ORIGINS: 'http://localhost:5173,https://app.autopw3.com',
     APP_BASE_URL: 'http://localhost:5173',
     TESLA_CLIENT_ID: 'mock-tesla-client-id',
+    TESLA_FLEET_API_BASE_URL: 'https://fleet-api.prd.eu.vn.cloud.tesla.com',
     TESLA_CLIENT_SECRET: 'mock-tesla-client-secret',
     TESLA_REDIRECT_URI: 'https://app.autopw3.com/provider/tesla/callback',
     TOKEN_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
