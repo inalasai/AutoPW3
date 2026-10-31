@@ -1,10 +1,10 @@
-import { InMemoryRepository } from './db/repository';
 import type { Env } from './env';
+import { assertValidEnvironment } from './env';
 import { handleApiRequest } from './lib/app';
 import { TeslaClient } from './providers/tesla/client';
 import { MockTeslaClient } from './providers/tesla/mock-adapter';
 import { dispatchScheduledCronJobs } from './services/ingestion/dispatcher';
-import { InMemoryTokenStore } from './services/tokens/store';
+import { createRepository, createTokenStore } from './db/factory';
 
 export { handleApiRequest as handleRequest };
 
@@ -14,11 +14,9 @@ export default {
   },
 
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    const repo = new InMemoryRepository();
-    const tokenStore = new InMemoryTokenStore(
-      env.TOKEN_ENCRYPTION_KEY ??
-        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    );
+    assertValidEnvironment(env);
+    const repo = createRepository(env);
+    const tokenStore = createTokenStore(env);
     const teslaClient =
       env.PROVIDER_MODE !== 'mock' && env.TESLA_CLIENT_ID
         ? new TeslaClient()

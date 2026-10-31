@@ -51,11 +51,17 @@ jobs:
       - name: Secrets scan
         run: npm run secrets:scan
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright E2E smoke tests
+        run: npm run test:e2e
+
   deploy-staging:
     name: Deploy to Staging
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: staging
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +73,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Apply Supabase database migrations (staging)
+        if: env.STAGING_DB_URL != ''
+        run: npx --yes supabase@2.122.0 db push --db-url "${{ secrets.STAGING_SUPABASE_DB_URL }}"
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_SUPABASE_DB_URL }}
 
       - name: Build web application (staging)
         run: npm run build -w @autopw3/web
@@ -83,11 +95,15 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Post-deployment health check (staging)
+        run: |
+          curl -f -s -S --max-time 15 "https://staging.autopw3.example.com/api/v1/health" | grep -q '"status":"ok"'
+
   deploy-production:
     name: Deploy to Production
     needs: deploy-staging
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment:
       name: production
       url: https://autopw3.example.com
@@ -102,6 +118,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply Supabase database migrations (production)
+        if: env.PROD_DB_URL != ''
+        run: npx --yes supabase@2.122.0 db push --db-url "${{ secrets.PROD_SUPABASE_DB_URL }}"
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_SUPABASE_DB_URL }}
+
       - name: Build web application (production)
         run: npm run build -w @autopw3/web
         env:
@@ -111,8 +133,12 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY }}
 
       - name: Deploy Cloudflare Worker (production)
-        run: npx wrangler deploy
+        run: npx wrangler deploy --env production
         working-directory: apps/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Post-deployment health check (production)
+        run: |
+          curl -f -s -S --max-time 15 "https://autopw3.example.com/api/v1/health" | grep -q '"status":"ok"'

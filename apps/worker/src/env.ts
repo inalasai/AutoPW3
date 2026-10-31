@@ -30,3 +30,45 @@ export interface Env {
   /** Secret key for encrypting stored Tesla credentials at rest (32 bytes hex/base64). */
   TOKEN_ENCRYPTION_KEY?: string | undefined;
 }
+
+export class ConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
+
+/**
+ * Validates required environment configuration and prevents unsafe production defaults.
+ * Fails closed if production or staging is missing required keys or if mock provider is active in production (D-017).
+ */
+export function assertValidEnvironment(env: Env): void {
+  const isProd = env.ENVIRONMENT === 'production';
+  const isStaging = env.ENVIRONMENT === 'staging';
+
+  if (isProd || isStaging) {
+    if (!env.TOKEN_ENCRYPTION_KEY || env.TOKEN_ENCRYPTION_KEY.trim().length < 32) {
+      throw new ConfigurationError(
+        `TOKEN_ENCRYPTION_KEY is required and must be at least 32 characters in ${env.ENVIRONMENT}`,
+      );
+    }
+
+    if (!env.SUPABASE_URL || !env.SUPABASE_URL.startsWith('https://')) {
+      throw new ConfigurationError(`SUPABASE_URL must be a valid HTTPS URL in ${env.ENVIRONMENT}`);
+    }
+
+    if (!env.SUPABASE_SECRET_KEY || env.SUPABASE_SECRET_KEY.trim().length === 0) {
+      throw new ConfigurationError(`SUPABASE_SECRET_KEY is required in ${env.ENVIRONMENT}`);
+    }
+
+    if (!env.ALLOWED_ORIGINS || env.ALLOWED_ORIGINS.trim().length === 0) {
+      throw new ConfigurationError(`ALLOWED_ORIGINS must be configured in ${env.ENVIRONMENT}`);
+    }
+  }
+
+  if (isProd) {
+    if (env.PROVIDER_MODE === 'mock') {
+      throw new ConfigurationError('PROVIDER_MODE cannot be "mock" in production (D-017)');
+    }
+  }
+}

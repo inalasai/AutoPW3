@@ -17,5 +17,27 @@
   },
   "vars": {
     "ENVIRONMENT": "local",
+    "PROVIDER_MODE": "demo",
+    "ALLOWED_ORIGINS": "http://localhost:5173",
+  },
+  "env": {
+    "staging": {
+      "name": "autopw3-staging",
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "PROVIDER_MODE": "live",
+        "ALLOWED_ORIGINS": "https://staging.autopw3.example.com",
+        "TESLA_REDIRECT_URI": "https://staging.autopw3.example.com/api/v1/oauth/tesla/callback",
+      },
+    },
+    "production": {
+      "name": "autopw3",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "PROVIDER_MODE": "live",
+        "ALLOWED_ORIGINS": "https://autopw3.example.com",
+        "TESLA_REDIRECT_URI": "https://autopw3.example.com/api/v1/oauth/tesla/callback",
+      },
+    },
   },
 }

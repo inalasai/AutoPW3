@@ -616,3 +616,19 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Status:** Proposed
 - **Decision:** Member invitations use random 256-bit entropy tokens (`crypto.getRandomValues`) with raw tokens displayed once to the inviter and stored exclusively as SHA-256 hashes (`token_hash`) in the database. Full GDPR Article 20 data portability is provided via sanitized JSON exports (`/households/{id}/export` and `/me/export`) with zero credentials or tokens leaked. Right to Erasure (Article 17) provides atomic, confirmed erasure requiring exact typed household name matching (`confirmName`) for household deletion and `confirm: true` for account deletion, with last-admin guardrails enforced.
 - **Rationale:** Docs `PRIVACY.md` and `SECURITY_MODEL.md`; satisfies privacy-by-design requirements without external SMTP infrastructure dependencies.
+
+## D-109 Durable Worker persistence via Supabase PostgREST (Codex Blocker 1)
+- **Status:** Approved
+- **Decision:** Durable persistence is implemented for the Cloudflare Worker via `SupabaseRepository`, `PostgresTokenStore`, and `PostgresOAuthStateStore`. In staging and production environments, the worker instantiates PostgREST-backed repositories and AES-256-GCM encrypted token stores using `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `TOKEN_ENCRYPTION_KEY`. Scheduled cron triggers and HTTP fetch handlers instantiate stores from the same factory, ensuring that tokens and OAuth states generated during user flows are consistently available to background sync and ingestion jobs.
+- **Rationale:** Resolves Codex review blocker 1; eliminates in-memory ephemeral state loss across isolates in production.
+
+## D-110 Production fail-closed environment validation and CORS policy (Codex Blocker 2)
+- **Status:** Approved
+- **Decision:** The Worker startup asserts strict configuration validation (`assertValidEnvironment`) when running in `staging` or `production`. It fails closed (throwing `ConfigurationError`) if `TOKEN_ENCRYPTION_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, or `ALLOWED_ORIGINS` are omitted. Fallback hardcoded encryption keys are prohibited in production/staging. Running `PROVIDER_MODE=mock` in production is forbidden (D-017). Furthermore, CORS configuration (`parseCorsConfig`) strictly returns an empty allowed origins list in production/staging when no origins are provided, preventing wildcard or localhost fallback.
+- **Rationale:** Resolves Codex review blocker 2; guarantees safe production deployment by eliminating unsafe fallbacks.
+
+## D-111 Multi-environment Wrangler config and release pipeline gates (Codex Blockers 3, 4, 5)
+- **Status:** Approved
+- **Decision:** `apps/worker/wrangler.jsonc` defines explicit `env.staging` and `env.production` environments with configured `ALLOWED_ORIGINS`, `TESLA_REDIRECT_URI`, and `PROVIDER_MODE=live`. GitHub Actions deployment workflow (`.github/workflows/deploy.yml`) incorporates rigorous release gates: E2E smoke tests are executed prior to deployment; Supabase database migrations (`supabase db push`) are applied before worker bundle rollout; production workers deploy explicitly with `--env production`; and post-deployment curl health checks (`/api/v1/health`) verify deployment viability. Bootstrap documentation is corrected to pass the confirmed owner email (`p_email text`) matching `private.bootstrap_first_admin`.
+- **Rationale:** Resolves Codex review blockers 3, 4, and 5; provides automated release verification and operational reliability.
+

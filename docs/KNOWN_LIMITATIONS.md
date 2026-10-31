@@ -123,5 +123,8 @@ Append-only register. Use the status vocabulary: VERIFIED, MOCK_ONLY, AWAITING_C
 | L-117 | Process | TASK-20 was implemented on branch `Sai-AutoPW3`. Commits follow `task-20: <what>` | VERIFIED | TASK-20 |
 | L-118 | Deployment | Automated live deployment to production Cloudflare and Supabase environments requires owner vendor credentials; local emulation and dry-run bundles are fully verified | AWAITING_CREDENTIALS | TASK-21 |
 | L-119 | Process | TASK-21 was implemented on branch `Sai-AutoPW3`. Commits follow `task-21: <what>` | VERIFIED | TASK-21 |
+| L-120 | Persistence | Cloudflare Worker persistence is backed by PostgREST `SupabaseRepository`, `PostgresTokenStore`, and `PostgresOAuthStateStore`; scheduled and fetch handlers share persistent stores | VERIFIED | POST-REVIEW |
+| L-121 | Release | Deployment release gates and fail-closed security assertions verified via typecheck, unit tests, Secretlint, and Wrangler staging/production dry runs | VERIFIED | POST-REVIEW |
+
 
 

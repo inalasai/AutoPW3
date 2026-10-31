@@ -17,8 +17,10 @@ import {
   type UpdateRuleRequest,
   type UpdateSiteRequest,
 } from '@autopw3/shared';
-import { InMemoryRepository, type Repository } from '../db/repository';
+import type { Repository } from '../db/repository';
+import { createOAuthStateStore, createRepository, createTokenStore } from '../db/factory';
 import type { Env } from '../env';
+import { assertValidEnvironment } from '../env';
 import { applyCorsHeaders, handleCorsPreflight, parseCorsConfig } from './cors';
 import { errorResponse } from './errors';
 import {
@@ -101,8 +103,8 @@ import {
 import type { CostsQuery, EnergyQuery, PowerQuery } from '@autopw3/shared';
 import { MockTeslaClient } from '../providers/tesla/mock-adapter';
 import { TeslaClient, type ITeslaClient } from '../providers/tesla/client';
-import { InMemoryOAuthStateStore, type OAuthStateStore } from '../providers/tesla/oauth';
-import { InMemoryTokenStore, type TokenStore } from '../services/tokens/store';
+import type { OAuthStateStore } from '../providers/tesla/oauth';
+import type { TokenStore } from '../services/tokens/store';
 
 export interface AppDependencies {
   readonly repo?: Repository | undefined;
@@ -115,11 +117,6 @@ export interface AppDependencies {
   readonly fetcher?: typeof fetch | undefined;
 }
 
-const defaultRepo = new InMemoryRepository();
-const defaultOAuthStateStore = new InMemoryOAuthStateStore();
-const defaultTokenStore = new InMemoryTokenStore(
-  '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
-);
 const defaultTeslaClient = new MockTeslaClient();
 
 export async function handleApiRequest(
@@ -129,13 +126,28 @@ export async function handleApiRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   const requestId = crypto.randomUUID();
-  const corsConfig = parseCorsConfig(env.ALLOWED_ORIGINS);
+  const corsConfig = parseCorsConfig(env.ALLOWED_ORIGINS, env.ENVIRONMENT);
 
-  // 1. CORS Preflight
+  // 1. Fail closed on invalid production/staging configuration
+  try {
+    assertValidEnvironment(env);
+  } catch (err) {
+    return applyCorsHeaders(
+      errorResponse(
+        'INTERNAL',
+        err instanceof Error ? err.message : 'Invalid runtime configuration',
+        requestId,
+      ),
+      request,
+      corsConfig,
+    );
+  }
+
+  // 2. CORS Preflight
   const preflight = handleCorsPreflight(request, corsConfig, requestId);
   if (preflight) return preflight;
 
-  // 2. Base Path Routing (SPA vs API)
+  // 3. Base Path Routing (SPA vs API)
   if (!url.pathname.startsWith('/api/v1/')) {
     if (url.pathname === '/api/v1/health') {
       // fallback
@@ -152,7 +164,7 @@ export async function handleApiRequest(
 
   const apiPath = url.pathname.replace(/^\/api\/v1/, '') || '/';
 
-  // 3. Match Route Spec
+  // 4. Match Route Spec
   const matched = matchRoute(request.method, apiPath);
   if (!matched) {
     return applyCorsHeaders(
@@ -170,7 +182,7 @@ export async function handleApiRequest(
   }
 
   const { routeName, spec, pathParams } = matched.match!;
-  const repo = deps.repo ?? defaultRepo;
+  const repo = deps.repo ?? createRepository(env);
   const idempotencyStore = deps.idempotencyStore ?? defaultIdempotencyStore;
   const rateLimiter = deps.rateLimiter ?? defaultRateLimiter;
   const teslaClient =
@@ -178,12 +190,8 @@ export async function handleApiRequest(
     (env.PROVIDER_MODE !== 'mock' && env.TESLA_CLIENT_ID
       ? new TeslaClient(deps.fetcher)
       : defaultTeslaClient);
-  const tokenStore =
-    deps.tokenStore ??
-    (env.TOKEN_ENCRYPTION_KEY
-      ? new InMemoryTokenStore(env.TOKEN_ENCRYPTION_KEY)
-      : defaultTokenStore);
-  const oauthStateStore = deps.oauthStateStore ?? defaultOAuthStateStore;
+  const tokenStore = deps.tokenStore ?? createTokenStore(env);
+  const oauthStateStore = deps.oauthStateStore ?? createOAuthStateStore(env);
 
   // 4. Request Body Size Limit Check (64 KiB default, 1 MiB for dynamic price points)
   const isPricePointsRoute = apiPath.includes('/price-points');

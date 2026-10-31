@@ -339,11 +339,11 @@ sequenceDiagram
    - Check your email inbox and click the verification link from Supabase.
 2. **Execute First-Admin Bootstrap Procedure:**
    To guarantee single-owner tenancy without race conditions:
-   - In Supabase Dashboard -> **Authentication**, copy the new user's `User UID` (`<user-id>`).
+   - Use the confirmed email address from the owner registration.
    - Open **Supabase Dashboard -> SQL Editor** and execute:
      ```sql
      SELECT private.bootstrap_first_admin(
-       '<user-id>'::uuid,
+       'owner@example.com', -- Use your registered & confirmed email address
        'My Home Powerwall',
        'Europe/Dublin' -- Set to your local IANA timezone
      );

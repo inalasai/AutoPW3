@@ -4,15 +4,18 @@ export interface CorsConfig {
   readonly allowedOrigins: readonly string[];
 }
 
-export function parseCorsConfig(allowedOriginsStr?: string): CorsConfig {
+export function parseCorsConfig(allowedOriginsStr?: string, environment?: string): CorsConfig {
+  const isStrictEnv = environment === 'production' || environment === 'staging';
   if (!allowedOriginsStr) {
-    return { allowedOrigins: ['http://localhost:5173'] };
+    return { allowedOrigins: isStrictEnv ? [] : ['http://localhost:5173'] };
   }
   const origins = allowedOriginsStr
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  return { allowedOrigins: origins.length > 0 ? origins : ['http://localhost:5173'] };
+  return {
+    allowedOrigins: origins.length > 0 ? origins : isStrictEnv ? [] : ['http://localhost:5173'],
+  };
 }
 
 export function handleCorsPreflight(
