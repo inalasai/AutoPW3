@@ -3,6 +3,7 @@ import { FixedClock } from '@autopw3/domain';
 import type { PersistedPowerSample } from '@autopw3/shared';
 import { InMemoryRepository } from '../../db/repository';
 import { MockTeslaClient } from '../../providers/tesla/mock-adapter';
+import { InMemoryTokenStore } from '../tokens/store';
 import { runAutomationForSite } from './runner';
 
 function makeSample(sampledAt: string, batterySocPercent = 30): PersistedPowerSample {
@@ -26,10 +27,22 @@ describe('runAutomationForSite', () => {
   const SITE_ID = '22222222-2222-4222-8222-222222222222';
   let repo: InMemoryRepository;
   let teslaClient: MockTeslaClient;
+  let tokenStore: InMemoryTokenStore;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     repo = new InMemoryRepository();
     teslaClient = new MockTeslaClient();
+    tokenStore = new InMemoryTokenStore(
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    );
+    await tokenStore.saveTokens('11111111-1111-4111-8111-111111111111', {
+      accessToken: 'test-access-token',
+      refreshToken: 'test-refresh-token',
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      tokenType: 'Bearer',
+      scope: 'openid energy_device_data energy_cmds',
+      regionBaseUrl: 'https://fleet-api.example.invalid',
+    });
   });
 
   it('records WOULD_ACT for DRY_RUN rule and NEVER calls mock control endpoints', async () => {
@@ -41,6 +54,7 @@ describe('runAutomationForSite', () => {
     const report = await runAutomationForSite(SITE_ID, NOW, {
       repo,
       teslaClient,
+      tokenStore,
       clock: new FixedClock(NOW),
     });
 
@@ -72,6 +86,7 @@ describe('runAutomationForSite', () => {
     const report = await runAutomationForSite(SITE_ID, NOW, {
       repo,
       teslaClient,
+      tokenStore,
       clock: new FixedClock(NOW),
     });
 
@@ -97,6 +112,7 @@ describe('runAutomationForSite', () => {
     const report1 = await runAutomationForSite(SITE_ID, NOW, {
       repo,
       teslaClient,
+      tokenStore,
       clock: new FixedClock(NOW),
     });
     expect(report1.actedCount).toBe(1);
@@ -106,6 +122,7 @@ describe('runAutomationForSite', () => {
     const report2 = await runAutomationForSite(SITE_ID, NOW, {
       repo,
       teslaClient,
+      tokenStore,
       clock: new FixedClock(NOW),
     });
     expect(report2.actedCount).toBe(0);
@@ -123,6 +140,7 @@ describe('runAutomationForSite', () => {
       {
         repo,
         teslaClient,
+        tokenStore,
         clock: new FixedClock(NOW),
       },
       { maxMissedMinutes: 15 },
@@ -145,6 +163,7 @@ describe('runAutomationForSite', () => {
     const report = await runAutomationForSite(SITE_ID, NOW, {
       repo,
       teslaClient,
+      tokenStore,
       clock: new FixedClock(NOW),
     });
 
@@ -165,6 +184,7 @@ describe('runAutomationForSite', () => {
     const report = await runAutomationForSite(SITE_ID, NOW, {
       repo,
       teslaClient,
+      tokenStore,
       clock: new FixedClock(NOW),
     });
 

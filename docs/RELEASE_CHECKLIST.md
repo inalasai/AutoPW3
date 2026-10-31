@@ -4,6 +4,8 @@
 **Date:** 2026-10-26  
 **Auditor:** Automated Independent Verification  
 
+**Current status:** **NOT READY.** This 2026-10-26 checklist is historical and superseded by the 2026-10-31 Security Remediation Addendum in `docs/SECURITY_AUDIT.md`. The Worker has no durable Supabase adapters; deploy workflow jobs are disabled unless explicitly enabled after readiness is established.
+
 ---
 
 ## 1. Verified Working
@@ -89,7 +91,7 @@ Follow this step-by-step procedure when launching a new AutoPW3 instance for a r
 ### Step 2: Bootstrap Household and First Admin
 1. Deploy the production stack per `docs/DEPLOYMENT_RUNBOOK.md`.
 2. Register the owner account at `/register` and confirm your email.
-3. In the Supabase SQL editor, execute `SELECT private.bootstrap_first_admin('<owner-user-id>', 'Primary Household', 'UTC');`.
+3. In the Supabase SQL editor, execute `SELECT private.bootstrap_first_admin('<owner-email>', 'Primary Household', 'UTC');`.
 4. Sign in as admin at `/login`. Verify that the `/admin` navigation link appears and that you have `ADMIN` role.
 
 ### Step 3: Connect Tesla Fleet API

@@ -54,6 +54,9 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     needs: test
+    # Disabled until the PostgreSQL-backed Worker adapters and hosted environment setup are verified.
+    # The repository variable must be explicitly enabled by an owner after the readiness audit.
+    if: ${{ vars.AUTOPW3_DEPLOYMENT_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: staging
@@ -86,6 +89,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: deploy-staging
+    if: ${{ vars.AUTOPW3_DEPLOYMENT_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -111,7 +115,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY }}
 
       - name: Deploy Cloudflare Worker (production)
-        run: npx wrangler deploy
+        run: npx wrangler deploy --env production
         working-directory: apps/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

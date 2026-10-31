@@ -21,6 +21,7 @@ function makeTestEnv(overrides: Partial<Env> = {}): Env {
     ENVIRONMENT: 'test',
     SUPABASE_URL: 'https://project.supabase.co',
     ALLOWED_ORIGINS: 'http://localhost:5173,https://app.autopw3.com',
+    APP_BASE_URL: 'http://localhost:5173',
     TESLA_CLIENT_ID: 'mock-tesla-client-id',
     TESLA_CLIENT_SECRET: 'mock-tesla-client-secret',
     TESLA_REDIRECT_URI: 'https://app.autopw3.com/provider/tesla/callback',

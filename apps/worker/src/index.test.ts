@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { InMemoryRepository } from './db/repository';
 import type { Env } from './env';
+import worker from './index';
 import { handleApiRequest } from './lib/app';
 import { InMemoryIdempotencyStore } from './lib/idempotency';
 import { InMemoryRateLimiter } from './lib/rate-limiter';
@@ -9,8 +10,11 @@ import { createHs256Jwt, createTestJwt, getTestAuthKeys } from './test/jwt-helpe
 function makeTestEnv(overrides: Partial<Env> = {}): Env {
   return {
     ENVIRONMENT: 'test',
+    LOCAL_MOCKS: 'true',
     SUPABASE_URL: 'https://project.supabase.co',
+    TOKEN_ENCRYPTION_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     ALLOWED_ORIGINS: 'http://localhost:5173,https://app.autopw3.com',
+    APP_BASE_URL: 'http://localhost:5173',
     ASSETS: {
       fetch: (_input: RequestInfo | URL): Promise<Response> => {
         return Promise.resolve(new Response('<html>SPA</html>', { status: 200 }));
@@ -78,6 +82,133 @@ async function makeTestContext() {
 }
 
 describe('Cloudflare Worker API Core', () => {
+  it('constructs authenticated repository clients per request and preserves each verified actor JWT', async () => {
+    const keys = await getTestAuthKeys();
+    const userA = '11111111-aaaa-4111-8111-111111111111';
+    const userB = '22222222-bbbb-4222-8222-222222222222';
+    const tokenA = await createTestJwt({ userId: userA }, keys);
+    const tokenB = await createTestJwt({ userId: userB }, keys);
+    const seen: string[] = [];
+    const fetcher: typeof fetch = async (input, init) => {
+      const headers = new Headers(init?.headers);
+      seen.push(headers.get('authorization') ?? '');
+      expect(headers.get('apikey')).toBe('public-anon-key');
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/user_profiles')) {
+        const actor = decodeURIComponent(url.searchParams.get('user_id') ?? '').replace('eq.', '');
+        return Response.json([{ user_id: actor, display_name: `profile-${actor}`, locale: null }]);
+      }
+      if (url.pathname.endsWith('/household_members')) {
+        return Response.json([]);
+      }
+      throw new Error('unexpected database endpoint');
+    };
+    const env = makeTestEnv({ SUPABASE_ANON_KEY: 'public-anon-key' });
+    const request = (token: string) =>
+      handleApiRequest(
+        new Request('http://localhost/api/v1/me', {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+        env,
+        { jwtConfig: { supabaseUrl: env.SUPABASE_URL, testKeySet: keys.publicKey }, fetcher },
+      );
+
+    const responseA = await request(tokenA);
+    const responseB = await request(tokenB);
+    expect(responseA.status).toBe(200);
+    expect(responseB.status).toBe(200);
+    expect((await jsonOf<{ profile: { userId: string } }>(responseA)).profile.userId).toBe(userA);
+    expect((await jsonOf<{ profile: { userId: string } }>(responseB)).profile.userId).toBe(userB);
+    expect(seen).toEqual([
+      `Bearer ${tokenA}`,
+      `Bearer ${tokenA}`,
+      `Bearer ${tokenB}`,
+      `Bearer ${tokenB}`,
+    ]);
+  });
+
+  describe('deployment fail-closed behavior', () => {
+    it.each(['staging', 'production'])(
+      '%s does not serve API requests from in-memory defaults',
+      async (environment) => {
+        const env = makeTestEnv({
+          ENVIRONMENT: environment,
+          SUPABASE_ANON_KEY: 'test-public-value',
+          ALLOWED_ORIGINS: 'https://app.autopw3.com',
+        });
+
+        const response = await handleApiRequest(
+          new Request('https://app.autopw3.com/api/v1/health'),
+          env,
+        );
+
+        expect(response.status).toBe(502);
+        const body = await jsonOf(response);
+        expect(body.error.code).toBe('PROVIDER_UNAVAILABLE');
+        expect(body.error.message).toContain('durable storage');
+      },
+    );
+
+    it.each(['preview', 'local'])(
+      '%s does not silently select process-local stores without explicit local mock configuration',
+      async (environment) => {
+        const env = makeTestEnv({
+          ENVIRONMENT: environment,
+          LOCAL_MOCKS: undefined,
+          ALLOWED_ORIGINS: 'https://app.autopw3.com',
+        });
+
+        const response = await handleApiRequest(
+          new Request('https://app.autopw3.com/api/v1/health'),
+          env,
+        );
+
+        expect(response.status).toBe(502);
+        expect((await jsonOf(response)).error.code).toBe('PROVIDER_UNAVAILABLE');
+      },
+    );
+
+    it('allows local API mocks only with LOCAL_MOCKS=true', async () => {
+      const env = makeTestEnv({ ENVIRONMENT: 'local', LOCAL_MOCKS: 'true' });
+      const response = await handleApiRequest(new Request('http://localhost/api/v1/health'), env);
+
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe('scheduled job safety', () => {
+    it('refuses production cron execution until durable storage is configured', () => {
+      const env = makeTestEnv({ ENVIRONMENT: 'production' });
+      const ctx = { waitUntil: () => undefined } as unknown as ExecutionContext;
+
+      expect(() => worker.scheduled({} as ScheduledController, env, ctx)).toThrow(
+        'Scheduled jobs are disabled until durable storage is configured',
+      );
+    });
+
+    it('refuses local cron execution unless local mocks are explicitly enabled', () => {
+      const env = makeTestEnv({ ENVIRONMENT: 'local', LOCAL_MOCKS: undefined });
+      const ctx = { waitUntil: () => undefined } as unknown as ExecutionContext;
+
+      expect(() => worker.scheduled({} as ScheduledController, env, ctx)).toThrow(
+        'Scheduled local mocks require LOCAL_MOCKS=true',
+      );
+    });
+
+    it('refuses local cron execution when the encryption key is absent', () => {
+      const env = makeTestEnv({
+        ENVIRONMENT: 'local',
+        LOCAL_MOCKS: 'true',
+        TOKEN_ENCRYPTION_KEY: undefined,
+      });
+      const ctx = { waitUntil: () => undefined } as unknown as ExecutionContext;
+
+      expect(() => worker.scheduled({} as ScheduledController, env, ctx)).toThrow(
+        'Scheduled jobs require TOKEN_ENCRYPTION_KEY',
+      );
+    });
+  });
+
   describe('Health and Public Endpoints', () => {
     it('GET /api/v1/health returns { status: "ok" } without auth', async () => {
       const { request } = await makeTestContext();

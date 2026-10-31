@@ -2,6 +2,8 @@
 
 Status: **PROPOSED, awaiting owner approval.** Written 2026-10-22. Vendor facts V1 to V10 are defined in `docs/SYSTEM_ARCHITECTURE.md` §1. Decision IDs refer to `docs/DECISIONS.md`.
 
+**Implementation note (2026-10-31):** the Worker does not yet have durable Supabase-backed adapters; staging/production API and scheduled work now fail closed until they are wired and verified.
+
 Principle: **the database and Worker are authoritative; the browser only reflects.** A request that bypasses the frontend must fail on every protected operation.
 
 ## 1. Trust boundaries

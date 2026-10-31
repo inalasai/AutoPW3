@@ -18,6 +18,8 @@ import {
   type UpdateSiteRequest,
 } from '@autopw3/shared';
 import { InMemoryRepository, type Repository } from '../db/repository';
+import { SupabaseIdentityRepository, type IdentityRepository } from '../db/identity-repository';
+import { AuthenticatedPostgrestClient } from '../db/postgrest';
 import type { Env } from '../env';
 import { applyCorsHeaders, handleCorsPreflight, parseCorsConfig } from './cors';
 import { errorResponse } from './errors';
@@ -28,7 +30,7 @@ import {
   type IdempotencyStore,
 } from './idempotency';
 import { verifySupabaseJwt, type JwtVerifyConfig, type VerifiedUser } from './jwt';
-import { defaultRateLimiter, determineRateLimit, type InMemoryRateLimiter } from './rate-limiter';
+import { defaultRateLimiter, determineRateLimit, type RateLimiter } from './rate-limiter';
 import { matchRoute } from './router';
 
 // Route handlers
@@ -107,7 +109,7 @@ import { InMemoryTokenStore, type TokenStore } from '../services/tokens/store';
 export interface AppDependencies {
   readonly repo?: Repository | undefined;
   readonly idempotencyStore?: IdempotencyStore | undefined;
-  readonly rateLimiter?: InMemoryRateLimiter | undefined;
+  readonly rateLimiter?: RateLimiter | undefined;
   readonly jwtConfig?: JwtVerifyConfig | undefined;
   readonly teslaClient?: ITeslaClient | undefined;
   readonly tokenStore?: TokenStore | undefined;
@@ -117,10 +119,24 @@ export interface AppDependencies {
 
 const defaultRepo = new InMemoryRepository();
 const defaultOAuthStateStore = new InMemoryOAuthStateStore();
-const defaultTokenStore = new InMemoryTokenStore(
-  '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
-);
 const defaultTeslaClient = new MockTeslaClient();
+
+const DEPLOY_ENVIRONMENTS = new Set(['staging', 'production']);
+const IDENTITY_ROUTES = new Set([
+  'getMe',
+  'getHousehold',
+  'updateHousehold',
+  'listMembers',
+  'changeMemberRole',
+  'createInvitation',
+  'listInvitations',
+  'revokeInvitation',
+  'acceptInvitation',
+  'getSettings',
+  'removeMember',
+  'updateSettings',
+  'leaveHousehold',
+]);
 
 export async function handleApiRequest(
   request: Request,
@@ -130,6 +146,27 @@ export async function handleApiRequest(
   const url = new URL(request.url);
   const requestId = crypto.randomUUID();
   const corsConfig = parseCorsConfig(env.ALLOWED_ORIGINS);
+  const isDeployEnvironment = DEPLOY_ENVIRONMENTS.has(env.ENVIRONMENT);
+  const isExplicitLocalMock =
+    env.ENVIRONMENT === 'test' || (env.ENVIRONMENT === 'local' && env.LOCAL_MOCKS === 'true');
+
+  // Production and staging are deliberately unavailable until durable PostgreSQL-backed adapters
+  // for repository, tokens, OAuth state, idempotency and rate limiting are wired into the entry point.
+  // Never serve any API response from process-local defaults in a deployment environment.
+  if (
+    url.pathname.startsWith('/api/v1/') &&
+    (isDeployEnvironment || (!isExplicitLocalMock && !hasCompleteInjectedDependencies(deps)))
+  ) {
+    return applyCorsHeaders(
+      errorResponse(
+        'PROVIDER_UNAVAILABLE',
+        'Application API is disabled until durable storage is configured',
+        requestId,
+      ),
+      request,
+      corsConfig,
+    );
+  }
 
   // 1. CORS Preflight
   const preflight = handleCorsPreflight(request, corsConfig, requestId);
@@ -170,19 +207,25 @@ export async function handleApiRequest(
   }
 
   const { routeName, spec, pathParams } = matched.match!;
+  if (
+    !deps.tokenStore &&
+    !env.TOKEN_ENCRYPTION_KEY &&
+    ['connectTesla', 'teslaCallback', 'listDiscoveredSites', 'disconnectTesla'].includes(routeName)
+  ) {
+    return applyCorsHeaders(
+      errorResponse('PROVIDER_UNAVAILABLE', 'Token encryption is not configured', requestId),
+      request,
+      corsConfig,
+    );
+  }
+
   const repo = deps.repo ?? defaultRepo;
   const idempotencyStore = deps.idempotencyStore ?? defaultIdempotencyStore;
   const rateLimiter = deps.rateLimiter ?? defaultRateLimiter;
-  const teslaClient =
-    deps.teslaClient ??
-    (env.PROVIDER_MODE !== 'mock' && env.TESLA_CLIENT_ID
-      ? new TeslaClient(deps.fetcher)
-      : defaultTeslaClient);
+  const teslaClient = deps.teslaClient ?? resolveTeslaClient(env, deps.fetcher);
   const tokenStore =
     deps.tokenStore ??
-    (env.TOKEN_ENCRYPTION_KEY
-      ? new InMemoryTokenStore(env.TOKEN_ENCRYPTION_KEY)
-      : defaultTokenStore);
+    (env.TOKEN_ENCRYPTION_KEY ? new InMemoryTokenStore(env.TOKEN_ENCRYPTION_KEY) : undefined);
   const oauthStateStore = deps.oauthStateStore ?? defaultOAuthStateStore;
 
   // 4. Request Body Size Limit Check (64 KiB default, 1 MiB for dynamic price points)
@@ -249,6 +292,21 @@ export async function handleApiRequest(
       );
     }
   }
+
+  // Construct one authenticated database client per verified request. It captures only this
+  // request's bearer and is never stored in module state or passed to privileged handlers.
+  const identityRepo: IdentityRepository =
+    user && env.SUPABASE_URL && env.SUPABASE_ANON_KEY
+      ? new SupabaseIdentityRepository(
+          new AuthenticatedPostgrestClient(
+            env.SUPABASE_URL,
+            env.SUPABASE_ANON_KEY,
+            authHeader!.substring(7).trim(),
+            deps.fetcher,
+          ),
+          user.userId,
+        )
+      : (repo as Repository & IdentityRepository);
 
   // 6. Schema Validations: Path Parameters
   const pathValidation = pathParamsSchema(spec.path).safeParse(pathParams);
@@ -388,7 +446,7 @@ export async function handleApiRequest(
   // 10. Rate Limiting Check
   const rateLimitKey = user ? user.userId : (request.headers.get('cf-connecting-ip') ?? 'anon');
   const { limit, windowSeconds } = determineRateLimit(request.method, apiPath, Boolean(user));
-  const rateLimitRes = rateLimiter.check(rateLimitKey, limit, windowSeconds);
+  const rateLimitRes = await rateLimiter.check(rateLimitKey, limit, windowSeconds);
   if (!rateLimitRes.allowed) {
     return applyCorsHeaders(
       errorResponse('RATE_LIMITED', 'Rate limit exceeded', requestId, undefined, {
@@ -451,7 +509,8 @@ export async function handleApiRequest(
       );
     }
 
-    const membership = await repo.getMembership(targetHouseholdId, user!.userId);
+    const authorizationRepo = IDENTITY_ROUTES.has(routeName) ? identityRepo : repo;
+    const membership = await authorizationRepo.getMembership(targetHouseholdId, user!.userId);
     if (!membership) {
       // Cross-household access returns 404 to avoid leaking existence
       return applyCorsHeaders(
@@ -497,18 +556,18 @@ export async function handleApiRequest(
       break;
     }
     case 'getMe': {
-      handlerResponse = await handleGetMe(user!, repo, requestId);
+      handlerResponse = await handleGetMe(user!, identityRepo, requestId);
       break;
     }
     case 'getHousehold': {
-      handlerResponse = await handleGetHousehold(pathParams['hid']!, repo, requestId);
+      handlerResponse = await handleGetHousehold(pathParams['hid']!, identityRepo, requestId);
       break;
     }
     case 'listMembers': {
       handlerResponse = await handleListMembers(
         pathParams['hid']!,
         parsedQuery as { limit?: number; cursor?: string },
-        repo,
+        identityRepo,
         requestId,
       );
       break;
@@ -519,7 +578,7 @@ export async function handleApiRequest(
         pathParams['userId']!,
         parsedBody as { role: Role },
         user!,
-        repo,
+        identityRepo,
         requestId,
       );
       break;
@@ -529,7 +588,12 @@ export async function handleApiRequest(
         pathParams['hid']!,
         parsedBody as { email?: string; role?: Role; expiresInDays?: number },
         user!,
-        repo,
+        identityRepo,
+        {
+          appBaseUrl: env.APP_BASE_URL,
+          allowedOrigins: env.ALLOWED_ORIGINS,
+          environment: env.ENVIRONMENT,
+        },
         requestId,
       );
       break;
@@ -538,7 +602,7 @@ export async function handleApiRequest(
       handlerResponse = await handleListInvitations(
         pathParams['hid']!,
         parsedQuery as { limit?: number; cursor?: string },
-        repo,
+        identityRepo,
         requestId,
       );
       break;
@@ -547,7 +611,7 @@ export async function handleApiRequest(
       handlerResponse = await handleRevokeInvitation(
         pathParams['hid']!,
         pathParams['id']!,
-        repo,
+        identityRepo,
         requestId,
       );
       break;
@@ -556,13 +620,13 @@ export async function handleApiRequest(
       handlerResponse = await handleAcceptInvitation(
         parsedBody as { token: string },
         user!,
-        repo,
+        identityRepo,
         requestId,
       );
       break;
     }
     case 'getSettings': {
-      handlerResponse = await handleGetSettings(pathParams['hid']!, repo, requestId);
+      handlerResponse = await handleGetSettings(pathParams['hid']!, identityRepo, requestId);
       break;
     }
     case 'listSites': {
@@ -594,7 +658,7 @@ export async function handleApiRequest(
         parsedQuery as { code: string; state: string },
         env,
         oauthStateStore,
-        tokenStore,
+        tokenStore!,
         repo,
         teslaClient,
         requestId,
@@ -609,7 +673,7 @@ export async function handleApiRequest(
     case 'listDiscoveredSites': {
       handlerResponse = await handleListDiscoveredSites(
         pathParams['hid']!,
-        tokenStore,
+        tokenStore!,
         teslaClient,
         requestId,
       );
@@ -628,7 +692,7 @@ export async function handleApiRequest(
       handlerResponse = await handleDisconnectTesla(
         pathParams['hid']!,
         repo,
-        tokenStore,
+        tokenStore!,
         requestId,
       );
       break;
@@ -818,8 +882,9 @@ export async function handleApiRequest(
         pathParams['hid']!,
         pathParams['userId']!,
         user!,
-        repo,
+        identityRepo,
         requestId,
+        true,
       );
       break;
     }
@@ -828,8 +893,9 @@ export async function handleApiRequest(
         pathParams['hid']!,
         parsedBody as UpdateHouseholdSettingsRequest,
         user!,
-        repo,
+        identityRepo,
         requestId,
+        true,
       );
       break;
     }
@@ -838,8 +904,9 @@ export async function handleApiRequest(
         pathParams['hid']!,
         parsedBody as UpdateHouseholdRequest,
         user!,
-        repo,
+        identityRepo,
         requestId,
+        true,
       );
       break;
     }
@@ -893,8 +960,9 @@ export async function handleApiRequest(
       handlerResponse = await handleLeaveHousehold(
         pathParams['householdId']!,
         user!,
-        repo,
+        identityRepo,
         requestId,
+        true,
       );
       break;
     }
@@ -929,4 +997,37 @@ export async function handleApiRequest(
   }
 
   return applyCorsHeaders(handlerResponse, request, corsConfig);
+}
+
+function hasCompleteInjectedDependencies(deps: AppDependencies): boolean {
+  return Boolean(
+    deps.repo &&
+    deps.idempotencyStore &&
+    deps.rateLimiter &&
+    deps.jwtConfig &&
+    deps.tokenStore &&
+    deps.oauthStateStore,
+  );
+}
+
+function resolveTeslaClient(env: Env, fetcher?: typeof fetch): ITeslaClient {
+  if (env.PROVIDER_MODE === 'mock' && !DEPLOY_ENVIRONMENTS.has(env.ENVIRONMENT)) {
+    return defaultTeslaClient;
+  }
+  if (env.PROVIDER_MODE === 'mock' && env.ENVIRONMENT === 'staging') {
+    return defaultTeslaClient;
+  }
+  if (
+    env.PROVIDER_MODE === 'live' &&
+    env.TESLA_CLIENT_ID &&
+    env.TESLA_CLIENT_SECRET &&
+    env.TOKEN_ENCRYPTION_KEY
+  ) {
+    return new TeslaClient(fetcher);
+  }
+  // Do not silently substitute a mock provider in a deployment environment.
+  if (DEPLOY_ENVIRONMENTS.has(env.ENVIRONMENT)) {
+    throw new Error('Tesla provider configuration is unavailable');
+  }
+  return defaultTeslaClient;
 }

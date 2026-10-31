@@ -33,6 +33,7 @@ describe('generated database types', () => {
       | 'revoke_invitation'
       | 'set_automation_paused'
       | 'set_rule_mode'
+      | 'update_household'
     >();
   });
 

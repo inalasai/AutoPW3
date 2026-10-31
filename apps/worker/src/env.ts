@@ -7,6 +7,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** Deployment label: local | test | preview | production. */
   ENVIRONMENT: string;
+  /** Explicit opt-in for process-local mocks. Set only in local/test environments. */
+  LOCAL_MOCKS?: string | undefined;
   /** Supabase project URL (e.g. https://xxx.supabase.co). */
   SUPABASE_URL?: string | undefined;
   /** Supabase client anon public key. */
@@ -15,6 +17,8 @@ export interface Env {
   SUPABASE_SECRET_KEY?: string | undefined;
   /** Comma-separated CORS allowed origins (e.g. http://localhost:5173,https://autopw3.com). */
   ALLOWED_ORIGINS?: string | undefined;
+  /** Public application origin used to construct invitation links. */
+  APP_BASE_URL?: string | undefined;
   /** Telemetry provider mode: demo | mock | live. Refused in production if "mock" (D-017). */
   PROVIDER_MODE?: string | undefined;
   /** Optional custom JWT issuer override. Defaults to ${SUPABASE_URL}/auth/v1 */

@@ -2,7 +2,7 @@
 
 Status: **IMPLEMENTED, tested on PostgreSQL 17.10 with a test shim; NOT yet run on a real Supabase stack** (L-026, L-033). Written 2026-10-23. Implements `docs/SECURITY_MODEL.md` section 2.1 and `docs/DATABASE_DESIGN.md` section 3. Decisions D-031 to D-034.
 
-The table at the end ("Policy manifest") is compared with `pg_policies` by `npm run db:test`; a policy that exists but is not listed here, or listed but missing, fails the run.
+The table at the end ("Policy manifest") is compared with `pg_policies` by `npm run db:test`; a policy that exists but is not listed here, or listed but missing, fails the run. The 2026-10-31 profile-policy amendment is covered by adversarial isolation tests; real Supabase behavior remains NOT VERIFIED.
 
 ## 1. How access is enforced
 
@@ -23,7 +23,7 @@ Legend: **R** rows of the user's own household(s) (RLS filtered), **-** denied (
 
 | Table | anon | no membership | READ_ONLY | READ_WRITE | ADMIN |
 |---|---|---|---|---|---|
-| `user_profiles` | - | own: select, update `display_name`, `locale` | same | same | same, plus select profiles of people in the household |
+| `user_profiles` | - | own: select, update `display_name`, `locale` | same | same | same, plus select profiles of members of a shared household |
 | `households` | - | - | select | select | select, update `name`, `timezone`. Insert: bootstrap only. Delete: not granted (L-032) |
 | `household_members` | - | - | select own row (own role) | select own row | select all members of the household. Write: fn only |
 | `household_invitations` | - | - | - | - | select (never `token_hash`). Write: fn only |

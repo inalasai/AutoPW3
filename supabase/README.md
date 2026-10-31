@@ -1,6 +1,6 @@
 # supabase — database
 
-**Status:** schema and security in place (TASK-03, TASK-04): 11 migrations, 29 tables, 52 RLS policies, 8 audited `public` functions plus helpers in schema `private`, local `seed.sql`, 11 SQL test files. Verified on a throwaway PostgreSQL 17.10 with a test shim; `supabase db reset`, `supabase test db` and the hand-written `config.toml` are `NOT_EXECUTED` / `UNVERIFIED` (L-026, L-027, L-033). Job/lock/usage functions are TASK-16. See `docs/DATABASE_SETUP.md`.
+**Status:** 13 migrations, 29 tables, 52 RLS policies, 8 audited `public` functions plus helpers in schema `private`, local `seed.sql`, 12 SQL test files and 356 passing assertions on throwaway PostgreSQL 17.10 with a test shim. A new forward migration restricts profile directory reads to admins of shared households. `supabase db reset`, `supabase test db` and the hand-written `config.toml` remain `NOT_EXECUTED` / `UNVERIFIED` (L-026, L-027, L-033). See `docs/DATABASE_SETUP.md`.
 
 ## Purpose
 The PostgreSQL schema, Row Level Security policies, database functions, SQL security tests and local seed data. The database is authoritative for access control.
@@ -8,7 +8,7 @@ The PostgreSQL schema, Row Level Security policies, database functions, SQL secu
 ## Layout
 | Path | Content |
 |---|---|
-| `migrations/` | Versioned SQL, `YYYYMMDDHHMMSS_<verb>_<noun>.sql`. Never edit a merged migration; add a new one. 1 to 7: tables (TASK-03). 8 to 11: security helpers, integrity and audit triggers, identity and membership functions, policies and grants (TASK-04) |
+| `migrations/` | Versioned SQL, `YYYYMMDDHHMMSS_<verb>_<noun>.sql`. Never edit a merged migration; add a new one. Includes the profile isolation hardening migration. |
 | `tests/` | pgTAP-style security tests (`tests/database/*.test.sql`); see `tests/README.md` |
 | `seed.sql` | **Local only**, labelled, no real credentials |
 | `config.toml` | Supabase CLI configuration (hand-written, `UNVERIFIED`) |

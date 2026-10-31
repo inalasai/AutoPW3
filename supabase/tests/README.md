@@ -1,6 +1,6 @@
 # supabase/tests — SQL security tests
 
-**Status:** TASK-04. 11 files, 336 TAP assertions, passing on a throwaway PostgreSQL 17.10 with a test shim. **Not yet run on a real Supabase stack with real pgTAP** (`NOT_EXECUTED`, L-033).
+**Status:** 17 SQL files, 463 TAP assertions plus two-connection job-claim and overlapping-cron concurrency checks, run on a throwaway PostgreSQL 17.10 with a test shim. Includes adversarial profile visibility, job/lease boundaries, lock ownership, provider usage validation, durable storage RPCs and rate-limit checks. **Not yet run on a real Supabase stack with real pgTAP** (`NOT_EXECUTED`, L-033).
 
 ## What is here
 `database/*.test.sql` are pgTAP-style files. Each starts `begin; select plan(n);`, ends `select * from finish(); rollback;`, and uses only `plan`, `ok`, `is`, `isnt`, `throws_ok(sql, sqlstate, message, description)`, `lives_ok` and `finish`, so they run unchanged under real pgTAP.
@@ -18,6 +18,14 @@
 | `080_live_data_integrity_and_append_only` | `DEMO` insert denial, telemetry written by the server only, append-only logs |
 | `090_audit_trail` | Audit rows for privileged actions, metadata allowlist, who can read the trail |
 | `100_hardening_and_grants` | `SECURITY DEFINER` search paths, execute grants, RLS everywhere, no views, policy targets |
+| `110_profile_isolation` | Profile reads across unrelated, shared, multi-household, and membership-free users and altered UUID queries |
+| `120_job_function_hardening` | Job claim limits, exhaustion transitions, lease reclamation, lock input/ownership, provider usage validation |
+| `130_durable_job_api` | Service-only PostgREST job API, tenant-scoped enqueue, worker-owned lifecycle, retry/dead-letter transitions, lock and usage wrappers |
+| `131_durable_job_scheduling` | Bounded recurring scheduling, overlapping-cron deduplication, and tenant-consistent site jobs |
+| `132_secure_storage_rpc` | Service-only encrypted credential CRUD and durable, tenant-checked single-use OAuth state |
+| `133_durable_rate_limit` | Atomic service-only counter, hashed scope isolation, enforcement and retry-after bounds |
+
+`scripts/db-test.mjs` also runs a concurrent two-worker claim check using independent PostgreSQL connections and a held row lock.
 
 ## How to run
 ```bash

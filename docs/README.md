@@ -14,6 +14,11 @@
 | Security (TASK-04) | [`RLS_POLICY_MATRIX`](RLS_POLICY_MATRIX.md) (table x role x operation, tested manifest), [`ADMIN_BOOTSTRAP`](ADMIN_BOOTSTRAP.md) | 04 |
 | Operations | [`API_OPERATIONS`](API_OPERATIONS.md), `TELEMETRY_OPERATIONS`, `AUTOMATION_OPERATIONS`, `DEVICE_CONTROL_SAFETY`, `ADMINISTRATION` | 14–19 |
 | Tesla | [`TESLA_INTEGRATION`](TESLA_INTEGRATION.md), [`TESLA_CAPABILITY_MATRIX`](TESLA_CAPABILITY_MATRIX.md) | 15 |
-| Release | `SECURITY_AUDIT`, `TEST_REPORT`, `VERIFICATION_REGISTER`, `DEPLOYMENT_RUNBOOK`, `RECOVERY_GUIDE`, `RELEASE_CHECKLIST` | 20, 21 |
+| Release | `SECURITY_AUDIT`, `TEST_REPORT`, `VERIFICATION_REGISTER`, `DEPLOYMENT_RUNBOOK`, `RECOVERY_GUIDE`, `RELEASE_CHECKLIST` | 20, 21 (deployment currently blocked; see current remediation findings and `KNOWN_LIMITATIONS.md`) |
 
 Documents listed without a link are created by the task shown; they do not exist yet.
+# Durable processing
+- [Durable job processing](DURABLE_JOB_PROCESSING.md): queue RPC boundary, lease lifecycle, current activation blockers and spend-cap status.
+- [Stage 1 durable runtime audit](DURABLE_RUNTIME_STAGE1_AUDIT.md): entry-point dependency map, fail-closed behavior, and repository/idempotency blockers.
+- [Actor-aware durable repository architecture](DURABLE_REPOSITORY_ARCHITECTURE.md): method-level access, transaction/idempotency boundaries, runtime wiring, and implementation plan.
+- [Authenticated identity repository stage](DURABLE_IDENTITY_STAGE1.md): delivered method scope, JWT/RLS runtime path, verification and remaining blockers.

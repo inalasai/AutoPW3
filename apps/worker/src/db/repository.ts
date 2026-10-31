@@ -89,7 +89,7 @@ export interface Repository {
     email: string | null,
     role: Role,
     expiresInDays: number,
-  ): Promise<{ invitation: InvitationItem; token: string; link: string }>;
+  ): Promise<{ invitation: InvitationItem; token: string }>;
   listInvitations(
     householdId: string,
     limit: number,
@@ -278,6 +278,10 @@ export interface Repository {
 }
 
 export class InMemoryRepository implements Repository {
+  private readonly profiles = new Map<
+    string,
+    { userId: string; displayName: string | null; locale: string | null }
+  >();
   private readonly households = new Map<string, Household>();
   private readonly members = new Map<string, Map<string, MemberItem>>();
   private readonly invitations = new Map<string, InvitationItem & { tokenHash: string }>();
@@ -308,6 +312,31 @@ export class InMemoryRepository implements Repository {
     string,
     { id: string; state: string; createdAt: string; finishedAt?: string }
   >();
+
+  async getProfile(userId: string) {
+    const existing = this.profiles.get(userId);
+    if (existing) return { ...existing };
+    let displayName: string | null = null;
+    for (const householdMembers of this.members.values()) {
+      const member = householdMembers.get(userId);
+      if (member) {
+        displayName = member.displayName;
+        break;
+      }
+    }
+    return { userId, displayName, locale: 'en-IE' };
+  }
+
+  async updateProfile(
+    userId: string,
+    updates: { displayName?: string | null; locale?: string | null },
+  ) {
+    const current = await this.getProfile(userId);
+    const next = { ...current, ...updates };
+    this.profiles.set(userId, next);
+    return next;
+  }
+
   private readonly householdSettings = new Map<
     string,
     {
@@ -601,7 +630,7 @@ export class InMemoryRepository implements Repository {
     email: string | null,
     role: Role,
     expiresInDays: number,
-  ): Promise<{ invitation: InvitationItem; token: string; link: string }> {
+  ): Promise<{ invitation: InvitationItem; token: string }> {
     const id = crypto.randomUUID();
     const rawToken = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
     const tokenHash = await this.hashToken(rawToken);
@@ -621,7 +650,6 @@ export class InMemoryRepository implements Repository {
     };
     this.invitations.set(id, invitation);
 
-    const link = `https://autopw3.local/invite?token=${rawToken}`;
     return {
       invitation: {
         id: invitation.id,
@@ -634,7 +662,6 @@ export class InMemoryRepository implements Repository {
         revokedAt: invitation.revokedAt,
       },
       token: rawToken,
-      link,
     };
   }
 

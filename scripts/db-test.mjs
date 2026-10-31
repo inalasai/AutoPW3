@@ -68,6 +68,140 @@ const connect = async (database) => {
   return client;
 };
 
+async function verifyConcurrentJobClaims(client) {
+  const suffix = `job-concurrency-${crypto.randomUUID()}`;
+  const inserted = await client.query(
+    `insert into public.scheduled_jobs (kind, dedupe_key, run_at)
+     values ('sync_live', $1, now() - interval '2 minutes'),
+            ('sync_live', $2, now() - interval '1 minute')
+     returning id, dedupe_key`,
+    [`${suffix}-locked`, `${suffix}-available`],
+  );
+  const lockedId = inserted.rows.find((row) => row.dedupe_key.endsWith('-locked')).id;
+  const availableId = inserted.rows.find((row) => row.dedupe_key.endsWith('-available')).id;
+  const workerA = await connect('security_tests');
+  const workerB = await connect('security_tests');
+
+  try {
+    await workerA.query('begin');
+    await workerA.query('select id from public.scheduled_jobs where id = $1 for update', [
+      lockedId,
+    ]);
+
+    await workerB.query('begin');
+    await workerB.query('set local role service_role');
+    const claimB = await workerB.query('select id from private.claim_jobs($1, $2, $3)', [
+      'worker-b',
+      1,
+      60,
+    ]);
+    await workerB.query('commit');
+
+    await workerA.query('set local role service_role');
+    const claimA = await workerA.query('select id from private.claim_jobs($1, $2, $3)', [
+      'worker-a',
+      1,
+      60,
+    ]);
+    await workerA.query('commit');
+
+    if (claimB.rows.length !== 1 || claimB.rows[0].id !== availableId) {
+      throw new Error('second worker did not skip the row locked by the first worker');
+    }
+    if (claimA.rows.length !== 1 || claimA.rows[0].id !== lockedId) {
+      throw new Error('first worker did not claim its locked row after releasing its lock');
+    }
+    if (claimA.rows[0].id === claimB.rows[0].id) {
+      throw new Error('concurrent workers claimed the same job');
+    }
+
+    totalOk += 1;
+    console.log(
+      'ok    concurrent job claims: SKIP LOCKED produced disjoint claims for two workers',
+    );
+  } finally {
+    try {
+      await workerA.query('rollback');
+    } catch {
+      /* transaction already committed or rolled back */
+    }
+    try {
+      await workerB.query('rollback');
+    } catch {
+      /* transaction already committed or rolled back */
+    }
+    await workerA.end();
+    await workerB.end();
+    await client.query('delete from public.scheduled_jobs where id = any($1::uuid[])', [
+      [lockedId, availableId],
+    ]);
+  }
+}
+
+async function verifyConcurrentCronScheduling(client) {
+  const workerA = await connect('security_tests');
+  const workerB = await connect('security_tests');
+  const scheduledAt = '2026-10-31T12:00:00Z';
+
+  try {
+    await client.query('select tests.world()');
+    await client.query(
+      "update public.energy_sites set connection_state = 'LIVE' where id = tests.id('s1')",
+    );
+    const households = (
+      await client.query(
+        "select id from public.households where id in (tests.id('h1'), tests.id('h2'))",
+      )
+    ).rows.map((r) => r.id);
+
+    const runCron = async (worker) => {
+      await worker.query('begin');
+      await worker.query('set local role service_role');
+      const result = await worker.query(
+        'select public.worker_schedule_due_jobs($1::timestamptz, $2, $3) as inserted',
+        [scheduledAt, 100, 100],
+      );
+      await worker.query('commit');
+      return Number(result.rows[0].inserted);
+    };
+    const inserted = await Promise.all([runCron(workerA), runCron(workerB)]);
+    const jobs = await client.query(
+      `select count(*)::int as count, count(distinct dedupe_key)::int as distinct_count
+         from public.scheduled_jobs where household_id = any($1::uuid[])`,
+      [households],
+    );
+    const count = jobs.rows[0].count;
+    const distinctCount = jobs.rows[0].distinct_count;
+    if (inserted[0] + inserted[1] !== 6 || count !== 6 || distinctCount !== 6) {
+      throw new Error(
+        `overlapping cron scheduled ${count} rows (${distinctCount} unique) with ${inserted} insert results`,
+      );
+    }
+    totalOk += 1;
+    console.log(
+      'ok    concurrent cron scheduling: overlapping invocations created one deterministic set of jobs',
+    );
+  } finally {
+    try {
+      await workerA.query('rollback');
+    } catch {
+      /* already committed or rolled back */
+    }
+    try {
+      await workerB.query('rollback');
+    } catch {
+      /* already committed or rolled back */
+    }
+    await workerA.end();
+    await workerB.end();
+    await client.query("delete from public.households where name in ('H1', 'H2')");
+    await client.query(
+      "delete from auth.users where email in ('alice@example.invalid', 'rw1@example.invalid', 'ro1@example.invalid', 'bob@example.invalid', 'carol@example.invalid')",
+    );
+    await client.query('delete from tests.fx');
+  }
+}
+
 // Rows of every statement result, flattened to the TAP lines they contain.
 function tapLines(result) {
   const results = Array.isArray(result) ? result : [result];
@@ -149,6 +283,20 @@ try {
     } else {
       console.log(`ok    ${file}: ${ok} tests`);
     }
+  }
+
+  try {
+    await verifyConcurrentJobClaims(client);
+  } catch (err) {
+    hardFailures += 1;
+    console.error(`FAIL  concurrent job claims: ${err.message}`);
+  }
+
+  try {
+    await verifyConcurrentCronScheduling(client);
+  } catch (err) {
+    hardFailures += 1;
+    console.error(`FAIL  concurrent cron scheduling: ${err.message}`);
   }
 
   // The policies in the database must equal the manifest in docs/RLS_POLICY_MATRIX.md.

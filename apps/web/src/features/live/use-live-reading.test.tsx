@@ -103,26 +103,52 @@ describe('useLiveReading', () => {
   });
 
   it('keeps the last good reading and says why when a refresh fails', async () => {
+    let resolveNext: ((value: LiveSnapshotResult<DataSource>) => void) | undefined;
+
     const getLiveSnapshot = vi
       .fn<LiveProvider['getLiveSnapshot']>()
       .mockImplementationOnce(() => snapshot('SOLAR_SURPLUS'))
       .mockRejectedValueOnce(new TelemetryProviderError('UNAVAILABLE', 'secret detail'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<LiveSnapshotResult<DataSource>>((resolve) => {
+            resolveNext = resolve;
+          }),
+      )
       .mockImplementation(() => snapshot('LOW_BATTERY'));
+
     const { result } = renderHook(() => useLiveReading(providerOf(getLiveSnapshot), OPTIONS));
+
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
+
     const first = result.current.result;
     expect(first).not.toBeNull();
+
     await waitFor(() => {
       expect(result.current.status).toBe('error');
     });
+
     expect(result.current.result).toBe(first);
     expect(result.current.error).toMatch(/last reading is kept/);
     expect(result.current.error).not.toContain('secret');
+
+    await waitFor(() => {
+      expect(getLiveSnapshot).toHaveBeenCalledTimes(3);
+      expect(resolveNext).toBeDefined();
+    });
+
+    const next = await snapshot('LOW_BATTERY');
+    await act(async () => {
+      resolveNext!(next);
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
+
     expect(result.current.error).toBeNull();
     expect(result.current.result).not.toBe(first);
   });

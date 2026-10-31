@@ -54,6 +54,7 @@ const REQUIRED_TABLES = [
   'automation_executions',
   'scheduled_jobs',
   'job_locks',
+  'worker_rate_limit_buckets',
   'audit_log',
 ];
 

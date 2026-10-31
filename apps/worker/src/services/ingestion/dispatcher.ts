@@ -8,6 +8,78 @@ import { syncHistoricalIntervalsForSite } from './historical-sync';
 import { fetchAndPersistLiveStatus } from './live-fetcher';
 import { runRetentionJob } from './retention';
 import { recomputeRollups } from './rollups';
+import {
+  executeDurableJobBatch,
+  type DurableJobHandlers,
+  type DurableBatchReport,
+  type DurableJobOwnershipValidator,
+} from '../jobs/executor';
+import type { DurableJobStore, EnqueueJob } from '../jobs/store';
+
+export interface DurableCronDispatcherDependencies {
+  readonly store: DurableJobStore;
+  readonly workerId: string;
+  readonly dueJobs: readonly EnqueueJob[];
+  readonly handlers: DurableJobHandlers;
+  readonly validateOwnership: DurableJobOwnershipValidator;
+  readonly batchSize?: number | undefined;
+  readonly leaseSeconds?: number | undefined;
+  readonly maxExecutionMs?: number | undefined;
+}
+
+/** Persist discovered recurring work before claiming it; duplicate cron deliveries are harmless. */
+export async function dispatchDurableCronJobs(
+  deps: DurableCronDispatcherDependencies,
+): Promise<DurableBatchReport & { readonly scheduled: number; readonly deduplicated: number }> {
+  let scheduled = 0;
+  let deduplicated = 0;
+  for (const job of deps.dueJobs) {
+    const id = await deps.store.enqueue(job);
+    if (id) scheduled++;
+    else deduplicated++;
+  }
+
+  const batch = await executeDurableJobBatch({
+    store: deps.store,
+    workerId: deps.workerId,
+    handlers: deps.handlers,
+    validateOwnership: deps.validateOwnership,
+    batchSize: deps.batchSize,
+    leaseSeconds: deps.leaseSeconds,
+    maxExecutionMs: deps.maxExecutionMs,
+  });
+  return { ...batch, scheduled, deduplicated };
+}
+
+/** Database-driven recurring scheduling plus atomic claim and execution for a cron tick. */
+export async function dispatchPersistedCronCycle(deps: {
+  readonly store: DurableJobStore;
+  readonly workerId: string;
+  readonly now: string;
+  readonly handlers: DurableJobHandlers;
+  readonly validateOwnership: DurableJobOwnershipValidator;
+  readonly maxSites?: number | undefined;
+  readonly maxHouseholds?: number | undefined;
+  readonly batchSize?: number | undefined;
+  readonly leaseSeconds?: number | undefined;
+  readonly maxExecutionMs?: number | undefined;
+}): Promise<DurableBatchReport & { readonly scheduled: number }> {
+  const scheduled = await deps.store.scheduleDueJobs(
+    deps.now,
+    deps.maxSites ?? 100,
+    deps.maxHouseholds ?? 100,
+  );
+  const batch = await executeDurableJobBatch({
+    store: deps.store,
+    workerId: deps.workerId,
+    handlers: deps.handlers,
+    validateOwnership: deps.validateOwnership,
+    batchSize: deps.batchSize,
+    leaseSeconds: deps.leaseSeconds,
+    maxExecutionMs: deps.maxExecutionMs,
+  });
+  return { ...batch, scheduled };
+}
 
 export interface IngestionDispatcherDependencies {
   readonly repo: Repository;
@@ -42,10 +114,7 @@ export async function dispatchScheduledCronJobs(
   const discoveredHouseholds = deps.repo.listAllHouseholdIds
     ? await deps.repo.listAllHouseholdIds()
     : [];
-  const householdIds =
-    discoveredHouseholds.length > 0
-      ? discoveredHouseholds
-      : ['11111111-1111-4111-8111-111111111111'];
+  const householdIds = discoveredHouseholds;
 
   // 1. Token maintenance: check and refresh expiring tokens
   for (const hid of householdIds) {
