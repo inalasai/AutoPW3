@@ -4,7 +4,7 @@ import { TeslaAuthError, TeslaClient, TeslaNetworkError, TeslaRateLimitError } f
 describe('Tesla Client & Telemetry Normalisation', () => {
   const token = 'mock-access-token';
   const baseUrl = 'https://fleet-api.prd.na.vn.cloud.tesla.com';
-  const siteId = '22222222-2222-4222-8222-222222222222';
+  const siteId = '1234567890'; // Tesla numeric energy-site ID, not an internal UUID.
 
   describe('Discovery', () => {
     it('discovers region and fleetApiBaseUrl from /api/1/users/region', async () => {
@@ -96,6 +96,49 @@ describe('Tesla Client & Telemetry Normalisation', () => {
   });
 
   describe('Error Handling & Rate Limits', () => {
+    it('keeps large numeric site IDs exact and uses the bounded read transport', async () => {
+      const client = new TeslaClient(async (url, init) => {
+        expect(String(url)).toBe(`${baseUrl}/api/1/energy_sites/9007199254740993/live_status`);
+        expect(init?.method).toBe('GET');
+        expect(init?.redirect).toBe('error');
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        return Response.json({ response: { grid_power: 0 } });
+      });
+      expect(await client.getLiveStatus(baseUrl, '9007199254740993', token)).toEqual({
+        grid_power: 0,
+      });
+    });
+
+    it.each([
+      '../123',
+      '123?x=1',
+      '123/command',
+      '0',
+      'https://attacker.invalid',
+      '123\n',
+      '123\r\n',
+    ])('rejects provider ID %s before sending a token', async (id) => {
+      const client = new TeslaClient(async () => {
+        throw new Error('Fetch must not be called');
+      });
+      await expect(client.getLiveStatus(baseUrl, id, token)).rejects.toThrow(
+        'Invalid stored Tesla energy site identifier',
+      );
+    });
+
+    it.each([
+      'https://attacker.invalid',
+      `${baseUrl}/path`,
+      'http://fleet-api.prd.na.vn.cloud.tesla.com',
+    ])('rejects provider host %s before sending a token', async (host) => {
+      const client = new TeslaClient(async () => {
+        throw new Error('Fetch must not be called');
+      });
+      await expect(client.getLiveStatus(host, siteId, token)).rejects.toThrow(
+        'Unsupported Tesla Fleet origin',
+      );
+    });
+
     it('throws TeslaAuthError on HTTP 401', async () => {
       const mockFetch: typeof fetch = async () => {
         return new Response('Unauthorized token', { status: 401 });

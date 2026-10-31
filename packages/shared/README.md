@@ -25,3 +25,5 @@ The single source of truth for TypeScript types, Zod schemas, constants and gene
 
 ## Tests
 Valid and invalid payload tests beside each schema (`*.test.ts`), compile-time checks with `expectTypeOf`, and the drift tests in `src/contract/`.
+
+**Phase 3 status:** `schemas/provider-live-status.ts` exports `ProviderLiveStatusSchema` and its inferred type for the gated manual staging snapshot. This explicitly labels provider-native signs and nullable measurements/timestamp; it is separate from normalized `LiveReading`/persisted samples and is not an accounting or capability model. There is no production or general route-table expansion.

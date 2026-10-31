@@ -19,6 +19,7 @@ export * from './schemas/health';
 export * from './schemas/identity';
 export * from './schemas/sites';
 export * from './schemas/telemetry';
+export * from './schemas/provider-live-status';
 export * from './schemas/tariffs';
 export * from './schemas/commands';
 export * from './schemas/automation';

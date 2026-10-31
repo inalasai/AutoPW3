@@ -9,3 +9,5 @@ The security follow-up [`STAGING-IDENTITY-HARDENING.md`](STAGING-IDENTITY-HARDEN
 The durable site-read foundation [`DURABLE-SITE-READS.md`](DURABLE-SITE-READS.md) records the two scoped persisted-site reads, Sai query reuse, and local isolation verification.
 
 The [Phase 2 OAuth handoff](PHASE-2-DURABLE-TESLA-OAUTH.md) records the gated durable staging connect/callback flow, security boundaries, verification and external prerequisites.
+
+The [Phase 3 live-status handoff](PHASE-3-TESLA-LIVE-STATUS.md) records the isolated manual staging snapshot, native-sign/nullable response contract, reuse comparison and verification results. No live provider call was made.

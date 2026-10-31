@@ -11,6 +11,8 @@ export interface Env {
   STAGING_IDENTITY_READ_ENABLED?: string | undefined;
   /** Staging only, read-only Tesla OAuth connect/callback. Disabled unless exactly "true". */
   STAGING_TESLA_OAUTH_ENABLED?: string | undefined;
+  /** Staging only: manual read-only Tesla live-status snapshot; exact "true" opt-in. */
+  STAGING_TESLA_LIVE_STATUS_ENABLED?: string | undefined;
   /** Explicit opt-in for process-local mocks. Set only in local/test environments. */
   LOCAL_MOCKS?: string | undefined;
   /** Supabase project URL (e.g. https://xxx.supabase.co). */

@@ -1,7 +1,9 @@
 import { normalisePowerReading } from '@autopw3/domain';
 import type { OperationMode, PersistedPowerSample } from '@autopw3/shared';
 import type { TeslaRawEnergyHistory, TeslaRawLiveStatus, TeslaRawSiteInfo } from './raw-types';
-import { teslaJson } from './http';
+import { teslaJson, TeslaHttpError } from './http';
+import { requireTeslaEnergySiteId } from './live-status';
+import { z } from 'zod';
 import { requireTeslaFleetOrigin } from './region';
 
 export const DEFAULT_TESLA_API_BASE_URL = 'https://fleet-api.prd.na.vn.cloud.tesla.com';
@@ -225,9 +227,30 @@ export class TeslaClient implements ITeslaClient {
     siteId: string,
     accessToken: string,
   ): Promise<TeslaRawLiveStatus> {
-    const url = `${baseUrl}/api/1/energy_sites/${siteId}/live_status`;
-    const data = await this.executeRequest<{ response?: TeslaRawLiveStatus }>(url, accessToken);
-    return data.response ?? {};
+    const url = `${requireTeslaFleetOrigin(baseUrl)}/api/1/energy_sites/${requireTeslaEnergySiteId(siteId)}/live_status`;
+    let data: unknown;
+    try {
+      data = await teslaJson(
+        url,
+        {
+          method: 'GET',
+          headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+        },
+        this.fetcher,
+      );
+    } catch (error) {
+      if (error instanceof TeslaHttpError) {
+        // Preserve the existing typed client contract, without retaining provider bodies/causes.
+        if (error.status === 401) throw new TeslaAuthError('live_status');
+        if (error.status === 429)
+          throw new TeslaRateLimitError('live_status', error.retryAfterSeconds);
+        if (error.kind === 'NETWORK') throw new TeslaNetworkError('live_status');
+      }
+      throw error;
+    }
+    const parsed = z.object({ response: z.record(z.string(), z.unknown()) }).safeParse(data);
+    if (!parsed.success) throw new TeslaHttpError('INVALID_RESPONSE');
+    return parsed.data.response;
   }
 
   /**

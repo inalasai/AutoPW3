@@ -73,6 +73,9 @@ describe('Tesla authorization transport and granted scopes', () => {
       const errors = await Promise.all([
         exchangeAuthorizationCode(options, localFetch).catch((error: unknown) => error),
         new TeslaClient(localFetch)
+          .getLiveStatus(EU, '1234567890', 'fixture-bearer')
+          .catch((error: unknown) => error),
+        new TeslaClient(localFetch)
           .getRegion('fixture-bearer', EU)
           .catch((error: unknown) => error),
       ]);
@@ -111,7 +114,7 @@ describe('Tesla authorization transport and granted scopes', () => {
   it('bounds provider response bodies', async () => {
     await expect(
       teslaJson('https://auth.tesla.com', {}, async () => new Response('x'.repeat(65537))),
-    ).rejects.toThrow('Tesla authorization service unavailable');
+    ).rejects.toThrow('Tesla request failed');
   });
   it.each([scopes, scopes.split(' ')])(
     'uses documented access-token scp when scope is omitted: %j',
