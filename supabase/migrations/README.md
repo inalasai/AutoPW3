@@ -36,7 +36,7 @@ Status: 22 local migrations. `20261102160000_fence_staging_tesla_link_commit.sql
 authority/freshness after contention and installs its definition/grants in one DO statement. Existing
 Worker RPC signatures and OAuth/login remain compatible. No hosted migration was applied.
 
-Hosted staging checkpoint: three approved forward migrations installed and validated; Worker REDACTED_RUNTIME_ID deployed with preserved bindings and safety gates. Real ADMIN discovery and separately confirmed linking remain pending.
+Verified staging checkpoint: the approved migrations/Worker rollout, real ADMIN discovery and user-performed linking are complete. One refresh and one persisted site/link audit were verified; live features remain disabled. Private deployment identifiers stay excluded. See the [integration handoff](../../docs/handoffs/TESLA-STAGING-INTEGRATION.md).
 # Independent developer setup
 
 Status: [DEVELOPER_SETUP.md](../../docs/DEVELOPER_SETUP.md) documents local and developer-owned hosted

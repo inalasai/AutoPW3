@@ -34,7 +34,7 @@ Status: `verify-staging-build.mjs` checks staging auth/public configuration from
 environment, gates, CSP and asset hashes. Owner-specific hosted-preflight and Auth-redirect helpers
 are private/ignored and excluded from publication; ordinary development never needs operator access.
 
-Hosted staging checkpoint: three approved forward migrations installed and validated; Worker REDACTED_RUNTIME_ID deployed with preserved bindings and safety gates. Real ADMIN discovery and separately confirmed linking remain pending.
+Verified staging checkpoint: the approved migrations/Worker rollout, real ADMIN discovery and user-performed linking are complete. One refresh and one persisted site/link audit were verified; live features remain disabled. Private deployment identifiers stay excluded. See the [integration handoff](../docs/handoffs/TESLA-STAGING-INTEGRATION.md).
 
 Status: see [independent developer setup](../docs/TEAM_DEVELOPMENT.md) and the
 [publication handoff](../docs/handoffs/SECURE-GITHUB-PUBLICATION.md). No hosted-operation command is
