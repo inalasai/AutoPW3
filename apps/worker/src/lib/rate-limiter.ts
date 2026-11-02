@@ -72,7 +72,7 @@ export class SupabaseRateLimiter implements RateLimiter {
       'worker_check_rate_limit',
       { p_key_hash: keyHash, p_limit: limit, p_window_seconds: windowSeconds },
     );
-    const result = rows[0];
+    const result = rows?.[0];
     if (
       !result ||
       typeof result.allowed !== 'boolean' ||

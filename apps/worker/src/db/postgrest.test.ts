@@ -9,7 +9,7 @@ describe('request-scoped PostgREST transport', () => {
       expect(headers.get('apikey')).toBe('test-public-value');
       expect(headers.get('authorization')).toBe('Bearer user-jwt-a');
       expect(init?.signal).toBeInstanceOf(AbortSignal);
-      expect(init?.redirect).toBe('error');
+      expect(init?.redirect).toBe('manual');
       return Response.json([{ user_id: 'actor-a' }]);
     });
     const client = new AuthenticatedPostgrestClient(
@@ -48,7 +48,7 @@ describe('request-scoped PostgREST transport', () => {
   it('uses a separate service-role transport constructor', async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       expect(new Headers(init?.headers).get('authorization')).toBe('Bearer test-system-value');
-      expect(init?.redirect).toBe('error');
+      expect(init?.redirect).toBe('manual');
       return Response.json({ ok: true });
     });
     const system = createPrivilegedRpcClient(
@@ -59,6 +59,22 @@ describe('request-scoped PostgREST transport', () => {
     await expect(system.call('worker_claim_jobs', {})).resolves.toEqual({ ok: true });
     expect(() => system.call('unapproved_rpc' as never, {})).toThrow('not allowlisted');
   });
+
+  it.each(['tesla_reauthorization_required', 'refresh_recovery_required'])(
+    'retains only fixed recovery tag %s without provider details',
+    async (tag) => {
+      const client = new AuthenticatedPostgrestClient(
+        'https://project.supabase.co',
+        'test-public-value',
+        'user-jwt',
+        async () =>
+          Response.json({ code: '55000', message: tag, details: 'private-body' }, { status: 500 }),
+      );
+      const error = await client.rpc('refresh_operation', {}).catch((caught: unknown) => caught);
+      expect(error).toMatchObject({ code: '55000', tag });
+      expect(JSON.stringify(error)).not.toContain('private-body');
+    },
+  );
 
   it('rejects unsafe origins and missing request credentials', () => {
     expect(

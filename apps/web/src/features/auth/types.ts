@@ -1,4 +1,5 @@
 import type { MembershipSummary, UserProfile } from '@autopw3/shared';
+import type { TeslaSiteClient } from './tesla-sites';
 
 /** Who is signed in, as the identity provider reports it. Holds no role: roles come from the database. */
 export interface AuthUser {
@@ -84,6 +85,12 @@ export type AuthEvent =
  * in-memory one for tests and the Playwright smoke test (development builds only).
  */
 export interface AuthClient {
+  /** Available only in the staging Supabase adapter; no token access is exposed. */
+  readonly teslaSites?: TeslaSiteClient;
+  /** Staging-only completion; the adapter reads the current session without exposing it to UI code. */
+  completeTeslaOAuth?(
+    completion: { state: string; code: string } | { state: string; error: 'authorization_denied' },
+  ): Promise<void>;
   /** The signed-in user restored from storage, or `null`. No role. */
   getUser(): Promise<AuthUser | null>;
   /** Profile and memberships from the database, under the person's own token and RLS. Roles come from here only. */

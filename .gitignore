@@ -1,6 +1,7 @@
 # Dependencies and build output
 node_modules/
 dist/
+dist-developer/
 build/
 .vite/
 .turbo/
@@ -11,6 +12,7 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.*.example
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
@@ -22,6 +24,23 @@ secrets/
 
 # Cloudflare / Wrangler
 .wrangler/
+.wrangler-*/
+__pycache__/
+*.py[cod]
+
+# Operator-only helpers contain private deployment targeting and stay local.
+/scripts/staging-hosted-preflight.py
+/scripts/staging-auth-redirects.py
+
+# Private Wrangler overrides, database copies and runtime evidence.
+wrangler.private.*
+wrangler.*.local.*
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql.gz
+publication-audit/
 
 # Supabase local state
 supabase/.branches/

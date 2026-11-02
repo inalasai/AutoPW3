@@ -18,3 +18,17 @@ Register and login; READ_ONLY access; tariff create and validate; analytics; Tes
 - Tests never need real credentials. Use demo mode or a local stack.
 - Never commit traces, videos or reports containing tokens (`playwright-report/` is git-ignored).
 - Run with `npm run test:e2e`.
+
+Status: `staging-tesla.pw.ts` exercises the actual production-built `--mode staging` app, real Supabase
+client code with intercepted fixtures, lost-response duplicate protection, REAUTH/recovery, expiry,
+rate limiting and labelled DEMO telemetry. Run after the staging build with
+`npx playwright test --config playwright.staging.config.ts`. Every request is intercepted or aborted;
+real hosted/Tesla verification remains a separately approved step.
+
+Status: explicit manual read-only OAuth initiation is wired through the existing authenticated endpoint.
+It validates the Tesla redirect and cannot run automatically on a recovery error.
+# Portable staging fixture
+
+Status: staging browser tests derive the public Supabase origin from the same local staging
+configuration as the build. Every request is intercepted; no personal project/account is required
+and no provider request is allowed. See [team development](../docs/TEAM_DEVELOPMENT.md).

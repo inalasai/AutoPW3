@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { UpdateHouseholdSettingsRequest } from '@autopw3/shared';
 import { Button } from '../../components/ui/Button';
 import { GlassCard } from '../../components/ui/display';
@@ -7,6 +8,7 @@ import { ConfirmDialog } from '../../components/ui/overlays';
 import type { HouseholdSettingsData, TeslaLinkData } from './types';
 
 export interface SettingsManagerProps {
+  readonly teslaSiteSetup?: ReactNode;
   readonly settings: HouseholdSettingsData | null;
   readonly teslaLink: TeslaLinkData | null;
   readonly canAdmin: boolean;
@@ -15,6 +17,7 @@ export interface SettingsManagerProps {
 }
 
 export function SettingsManager({
+  teslaSiteSetup,
   settings,
   teslaLink,
   canAdmin,
@@ -25,7 +28,8 @@ export function SettingsManager({
   const [staleAfter, setStaleAfter] = useState('300');
   const [backgroundInterval] = useState('5');
   const [retentionDays, setRetentionDays] = useState('90');
-  const [controlsEnabled, setControlsEnabled] = useState(true);
+  const stagingSiteSetup = teslaSiteSetup !== undefined;
+  const [controlsEnabled, setControlsEnabled] = useState(!stagingSiteSetup);
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -37,9 +41,9 @@ export function SettingsManager({
     if (settings) {
       setSpendCap(settings.budget.capUsd);
       setStaleAfter(String(settings.staleAfterSeconds));
-      setControlsEnabled(settings.controlsEnabled);
+      setControlsEnabled(stagingSiteSetup ? false : settings.controlsEnabled);
     }
-  }, [settings]);
+  }, [settings, stagingSiteSetup]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +71,7 @@ export function SettingsManager({
         monthlySpendCapUsd: spendCap,
         staleAfterSeconds: parsedStale,
         rawRetentionDays: parseInt(retentionDays, 10) || 90,
-        controlsEnabled,
+        ...(stagingSiteSetup ? {} : { controlsEnabled }),
       });
 
       if (ok) {
@@ -91,47 +95,49 @@ export function SettingsManager({
   return (
     <div className="space-y-6">
       {/* Tesla Connection Card */}
-      <GlassCard title="Tesla Connection Status">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={`inline-block h-2.5 w-2.5 rounded-full ${
-                  isConnected ? 'bg-emerald-400 shadow-emerald-400/50 shadow-sm' : 'bg-rose-400'
-                }`}
-              />
-              <span className="font-semibold text-slate-100">
-                {isConnected ? 'Tesla Fleet API Connected' : 'Disconnected'}
-              </span>
-              <span
-                className={`rounded border px-2 py-0.5 text-xs font-mono font-medium ${
-                  isConnected
-                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                    : 'border-slate-700 bg-slate-800 text-slate-400'
-                }`}
-              >
-                {teslaLink?.state ?? 'NOT_CONNECTED'}
-              </span>
+      {teslaSiteSetup ?? (
+        <GlassCard title="Tesla Connection Status">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-block h-2.5 w-2.5 rounded-full ${
+                    isConnected ? 'bg-emerald-400 shadow-emerald-400/50 shadow-sm' : 'bg-rose-400'
+                  }`}
+                />
+                <span className="font-semibold text-slate-100">
+                  {isConnected ? 'Tesla Fleet API Connected' : 'Disconnected'}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-xs font-mono font-medium ${
+                    isConnected
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                      : 'border-slate-700 bg-slate-800 text-slate-400'
+                  }`}
+                >
+                  {teslaLink?.state ?? 'NOT_CONNECTED'}
+                </span>
+              </div>
+              <p className="text-xs text-ink-muted">
+                {isConnected
+                  ? `Authorized scopes: ${teslaLink?.scopes?.join(', ') || 'energy_device_data'}. Tokens encrypted at rest.`
+                  : 'No active Tesla authorization. Telemetry ingestion is suspended.'}
+              </p>
             </div>
-            <p className="text-xs text-ink-muted">
-              {isConnected
-                ? `Authorized scopes: ${teslaLink?.scopes?.join(', ') || 'energy_device_data'}. Tokens encrypted at rest.`
-                : 'No active Tesla authorization. Telemetry ingestion is suspended.'}
-            </p>
-          </div>
 
-          {canAdmin && isConnected && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-              onClick={() => setIsDisconnectOpen(true)}
-            >
-              Disconnect Tesla
-            </Button>
-          )}
-        </div>
-      </GlassCard>
+            {canAdmin && isConnected && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                onClick={() => setIsDisconnectOpen(true)}
+              >
+                Disconnect Tesla
+              </Button>
+            )}
+          </div>
+        </GlassCard>
+      )}
 
       {/* Household Settings Form */}
       <GlassCard title="Household Settings">
@@ -173,10 +179,12 @@ export function SettingsManager({
                 label="Enable Powerwall Remote Controls"
                 checked={controlsEnabled}
                 onCheckedChange={setControlsEnabled}
-                disabled={!canAdmin}
+                disabled={!canAdmin || stagingSiteSetup}
               />
               <p className="text-xs text-ink-muted">
-                When disabled, all device control requests and rule executions are blocked.
+                {stagingSiteSetup
+                  ? 'Powerwall controls remain disabled during staging site setup.'
+                  : 'When disabled, all device control requests and rule executions are blocked.'}
               </p>
             </div>
           </div>

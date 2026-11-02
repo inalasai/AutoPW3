@@ -112,3 +112,30 @@ export const DiscoveredSitesResponseSchema = z.strictObject({
   items: z.array(DiscoveredSiteSchema),
 });
 export type DiscoveredSitesResponse = z.infer<typeof DiscoveredSitesResponseSchema>;
+
+/** Gated staging onboarding: provider verifies the name; timezone comes from the household. */
+export const TeslaSiteLinkRequestSchema = z.strictObject({
+  provider: z.literal('TESLA').optional(),
+  providerSiteId: z.string().regex(/^[1-9][0-9]{0,19}$/),
+});
+export type TeslaSiteLinkRequest = z.infer<typeof TeslaSiteLinkRequestSchema>;
+
+/** Persisted metadata only; no capability assessment or claim that telemetry is LIVE. */
+export const TeslaSiteLinkResponseSchema = z.strictObject({
+  created: z.boolean(),
+  site: z.strictObject({
+    id: UuidSchema,
+    householdId: UuidSchema,
+    provider: z.literal('TESLA'),
+    providerSiteId: z.string().regex(/^[1-9][0-9]{0,19}$/),
+    name: z
+      .string()
+      .min(1)
+      .max(100)
+      .refine((value) => !/[\p{Cc}\p{Cf}<>]/u.test(value))
+      .nullable(),
+    timezone: IanaTimezoneSchema,
+    connectionState: SiteConnectionStateSchema,
+  }),
+});
+export type TeslaSiteLinkResponse = z.infer<typeof TeslaSiteLinkResponseSchema>;

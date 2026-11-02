@@ -18,7 +18,7 @@ export const ErrorDetailSchema = z.strictObject({
 export type ErrorDetail = z.infer<typeof ErrorDetailSchema>;
 
 /**
- * The body of every non-2xx response (API contract section 1). `details` appears only for 422 VALIDATION_FAILED.
+ * The body of every non-2xx response. Details describe validation or a fixed Tesla recovery conflict.
  * `message` is human-readable and contains no internals. `requestId` equals the `X-Request-Id` header.
  */
 export const ErrorResponseSchema = z.strictObject({
@@ -29,10 +29,21 @@ export const ErrorResponseSchema = z.strictObject({
       requestId: z.string().min(1).max(100),
       details: z.array(ErrorDetailSchema).optional(),
     })
-    .refine((e) => e.details === undefined || e.code === 'VALIDATION_FAILED', {
-      message: 'details are only allowed with VALIDATION_FAILED',
-      path: ['details'],
-    }),
+    .refine(
+      (e) =>
+        e.details === undefined ||
+        e.code === 'VALIDATION_FAILED' ||
+        (e.code === 'CONFLICT' &&
+          e.details.length === 1 &&
+          e.details[0]?.path === 'provider.tesla' &&
+          ['TESLA_REAUTHORIZATION_REQUIRED', 'TESLA_RECOVERY_REQUIRED'].includes(
+            e.details[0].issue,
+          )),
+      {
+        message: 'details require validation or a fixed Tesla recovery conflict',
+        path: ['details'],
+      },
+    ),
 });
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 

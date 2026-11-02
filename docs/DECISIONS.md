@@ -681,3 +681,177 @@ All entries below are **Proposed, awaiting owner approval** (the owner reviews b
 - **Transport:** Reuse/harden `getLiveStatus` and `teslaJson`: exact stored approved NA/EU host, bounded positive decimal site ID kept as a string, fixed GET, 10-second timeout, 64-KiB response bound, no redirects, sanitized typed failures and no regional retry. Require stored `energy_device_data`; expired/expiring tokens fail with reconnect guidance (30-second margin), with no refresh implementation. Durable rate limit is ten attempts per actor/minute, across sites; it is not a monetary cap.
 - **Reuse comparison:** Git fetch was denied writing `.git/FETCH_HEAD`. Read-only GitHub comparison pinned Raj `026f0e4488495a4bf9b5ae3eaf05991e6f25a1d9` and Sai `1e25918b2105f34168e5926b1ace0f7c3c7dee89` (9 ahead / 5 behind). Sai has no newer safe read-only live-status slice: its telemetry route retains persistence/demo fallback and its generic factory/service repository does not replace Raj's actor-scoped security. Import none of those components.
 - **Provider evidence:** [Tesla energy endpoints](https://developer.tesla.com/docs/fleet-api/endpoints/energy) documents `live_status` and powers in watts. Existing Raj field mappings supply candidate field names; actual payload availability, timestamp shape and native sign direction remain UNVERIFIED until an approved real read. No Tesla API was contacted during implementation.
+
+
+## D-122 ? Bind staging Tesla OAuth to its initiating browser
+
+- **Date:** 2026-11-01.
+- **Decision:** Require a host-only `__Host-autopw3-tesla-oauth` cookie with Secure, HttpOnly,
+  SameSite=Lax, Path=/ and at most 600 seconds of lifetime. Generate a fresh 256-bit secret per
+  transaction. Authenticate the complete state UUID, secret, expiry and lease metadata with HMAC-SHA-256,
+  using an HKDF-derived purpose-specific key from the existing token encryption key. Validate the cookie
+  and requested state before any state-consumption RPC, Tesla request or credential write.
+- **Concurrency:** Reuse existing owner-matched database leases, keyed by a hash of the authenticated
+  actor, to allow one pending attempt per actor across Workers and browsers. A valid pending browser
+  cookie also blocks another initiation. The lease lasts 720 seconds: ten minutes for consent plus
+  two minutes for bounded callback I/O. Only the callback that actually consumes state releases it;
+  replay losers cannot unlock an in-flight winner. Cleanup failures recover through lease expiry.
+- **Compatibility:** Existing state UUIDs, encrypted state format, token storage, RPCs, RLS and grants
+  are unchanged. No migration or new secret is required. Pre-fix authorization URLs fail without a
+  valid new cookie. Production, scopes, live status, commands and scheduled execution are unchanged.
+- **Trade-off:** Lost cookies, interrupted callbacks or lost cleanup responses can require waiting
+  up to twelve minutes from lease acquisition before reconnecting. A valid cookie for another transaction
+  is preserved on a mismatched callback. The cookie is authenticated, not encrypted: never log it or
+  capture it in HAR files. This does not protect a cookie that has already been stolen.
+
+## D-123 Staging OAuth session lifecycle, cookie ordering and persistence fencing
+
+- **Date:** 2026-11-01. Local implementation; no hosted changes or feature activation.
+- **Cookie ordering:** Callbacks never emit deletion cookies. A fixed-name deletion cannot compare
+  its value with the browser's newer cookie and is unsafe even on success. Let the 600-second cookie
+  expire; its presence no longer blocks initiation. A current authenticated ADMIN may explicitly
+  restart a pending attempt using `restart: true`; default overlapping initiation still conflicts.
+- **Session lifecycle:** GET callback only bridges to the fixed same-origin staging completion page.
+  The code/state travel in its fragment, are immediately removed from history, and are POSTed with
+  the current SDK session. Version-2 HMAC cookies bind the state to the initiating session and household.
+  Require a validated `session_id`, matching actor/session, live `auth.sessions` row, unexpired JWT and
+  current ADMIN authority before state consumption. Refresh within the same session is allowed;
+  signing out or signing into another session invalidates the old transaction. Staging logout and
+  switching confirm remote session revocation before local cleanup or new sign-in. A network failure
+  does not claim completed logout. Production behaviour is unchanged.
+- **Database ordering:** New service-only RPCs acquire actor and household leases transactionally.
+  Fenced persistence holds session, membership and matching unexpired lease rows through commit,
+  then reuses existing encrypted credential persistence and audit. A restart waits for an old save
+  already holding the fence, or supersedes it before it starts. A delayed old request cannot overwrite
+  newer credentials. An old save already authorized under a row lock commits before logout or restart
+  acknowledges; HTTP errors alone never establish rollback.
+- **Deployment:** `20261101160000_fence_staging_tesla_oauth.sql` must precede a coordinated staging
+  Worker/frontend rollout, with both Tesla flags disabled. No new secrets, public tables, Auth schema
+  changes, RLS changes or production RPC replacements are required. Existing pending cookies must
+  be restarted after rollout. Offline/local-storage-only logout is not the supported lifecycle policy.
+- **Auth evidence:** Supabase documents the revocable session row and `session_id` binding in
+  [Auth sessions](https://supabase.com/docs/guides/auth/sessions), and explains that JWT validity alone
+  survives logout until expiry in [sign-out](https://supabase.com/docs/guides/auth/signout).
+
+## D-124 Gated Tesla discovery and authenticated durable site linking
+
+- **Date:** 2026-11-01. Local implementation only; no deployment or hosted migration.
+- **Boundary:** Default-false `STAGING_TESLA_SITES_ENABLED` admits only exact staging GET discovered
+  sites and POST household sites (plus their narrow OPTIONS). Both require the current ADMIN's live
+  Supabase session, the project-bound JWT and a durable per-actor rate limit. Existing OAuth/live-status
+  flags and production, controls, automation and cron guards are unchanged.
+- **Discovery:** Reuse encrypted credentials and GET `/api/1/products` on their approved stored region.
+  Use the existing bounded/manual-redirect HTTP helper; enforce a 200-product/64-KiB response bound,
+  positive decimal IDs, safe integer conversion and nullable safe names. No fallback data or invented
+  name/capability/live status. Expired credentials fail; no refresh subsystem is activated.
+- **Provenance:** After fresh provider verification of the selected ID, a service-only RPC records
+  a private two-minute capability bound to actor, session, household, request key and an opaque
+  credential revision. The revision hashes encrypted bytes plus canonical metadata (expiry as epoch),
+  not just a timestamp; a same-timestamp credential replacement and timezone changes are handled safely.
+- **User mutation:** The final RPC uses the actual user JWT and auth.uid(), revalidates session/ADMIN/
+  credentials and locks the private request through commit. The existing global provider/site unique
+  constraint prevents duplicates or tenant reassignment. Insert with CONNECTING and null capabilities;
+  take timezone from the household and name from verified provider data. Persist audit and idempotent
+  result in the same transaction; never use separate get/execute/set or an in-memory repository.
+- **Idempotency:** Scope is actor + household + this dedicated operation + key, with the canonical
+  provider ID as payload identity. Unknown request fields are rejected. Same-key retries replay the
+  original result/status; changed payloads conflict for 24 hours. Another key for the same owned site
+  returns the existing record. Expired proofs can be renewed after fresh discovery; old proofs fail.
+  Cleanup lazily deletes at most ten expired records for the current actor/household per preparation.
+- **Compatibility:** Existing direct ADMIN PostgREST insert grants remain unchanged. The new Worker/RPC
+  workflow enforces provider provenance; this does not claim every pre-existing privileged/direct
+  database write path is provider-verified. Existing general route DTOs remain unchanged; the gated
+  staging POST explicitly returns `{created, site}` metadata without synthesized capabilities.
+
+
+## D-125 - Staging discovery refresh with durable rotation fencing (2026-11-02)
+
+An authenticated ADMIN preflight may accept expired ACTIVE read-only Tesla credentials for discovery
+only. Existing linking freshness checks remain unchanged. Before a token POST an authenticated begin
+records a private SENT barrier unique to household/credential revision. It is never cleared by lease
+expiry or logout. Unknown exchange/unstaged-result outcomes require separately authorized recovery;
+no blind token POST retry is permitted. Encrypted READY results may be resumed by the same actor/session.
+
+The service-only RPC stages encrypted output and accepts no actor/session identifiers. Only an actual
+user-JWT finish RPC can activate it, deriving auth.uid/session/expiry in PostgreSQL, rechecking live
+session/ADMIN after locks, and atomically applying revision/owner/deadline fencing, last_refresh_at and
+actor audit. Lock order is session, membership, token lease, credentials, attempt. No SQL transaction
+spans a Tesla call. Staging handlers have a 25-second budget; the database caps deadline and JWT expiry.
+
+Reuse existing AES-GCM storage, token lease primitives and Tesla refresh endpoint. Harden refresh
+transport/body limits and share token/scp normalization. Keep all existing staging flags, telemetry,
+controls, automation and cron unchanged. Preserve the current dirty branch and do not commit as the
+owner explicitly requested. The pre-code contract and operational limitations are in
+`docs/TESLA_DISCOVERY_REFRESH.md`. A new private ledger is necessary to distinguish an expired lease
+from an unknown refresh-token exchange; a lease alone cannot establish safe reexchange.
+
+## D-126 - Terminal recovery for expired staged Tesla generations (2026-11-02)
+
+A pending READY pair is a distinct rotated credential generation, never a retry input. Tesla documents
+single-use refresh-token rotation; its last-used-token grace period is not proof that any ambiguous
+exchange is safe to repeat. Rather than introduce a pending-generation exchange protocol, authenticated
+finish terminalizes expired/expiring staged access as REAUTH under existing session, ADMIN, owner,
+deadline and original-revision locks. The matching ACTIVE credential becomes NEEDS_REAUTH; audit and
+pending ciphertext erasure commit together while the durable COMMITTED barrier remains. Repeated
+discovery returns fixed reauthorization/recovery states with HTTP 409; no reconnect is automatic.
+
+Only activated pairs can enter a later refresh, protected by a new revision-specific SENT barrier.
+Install the unshipped refresh migrations with single DO statements so function definitions and grants
+are atomic under autocommit and transaction-wrapped runners. Base SQL was unmerged/unhosted; only its
+atomic wrapper changed. Preserve the existing branch and unrelated changes as in D-125.
+
+## D-127 - Complete staging integration preflight and recovery presentation (2026-11-02)
+
+Preserve D-126 conservative REAUTH and independent SENT generations. Fix the frontend recovery
+translation and shared error schema together: only two fixed Tesla CONFLICT detail identifiers are
+accepted; unknown/oversized bodies are discarded. Stop rediscovery on terminal recovery states while
+keeping the Supabase session. Explicit staging telemetry is DEMO while real Supabase authentication
+remains enabled; the staging controls switch is disabled and settings saves omit control changes.
+
+A new additive atomic migration rechecks live ADMIN/session/JWT and credential freshness after link
+row/index contention, rolling back any insert/audit/result if time-based authority expires. Actual
+hosted checks confirm version 230fecee, discovery enabled and all required secret bindings; align the
+local staging discovery flag with that deployment. No production flags change. Keep current dirty
+branch/work and require one consolidated approval before hosted changes or a real Tesla exchange.
+
+Manual OAuth initiation is now available only through an explicit ADMIN action. The existing session
+bridge completes it; redirect validation enforces the Tesla origin, exact read-only scopes and PKCE.
+Recovery errors never start OAuth automatically. Real reconnection was not performed.
+
+## D-128 - Approved staging rollout and explicit site-link checkpoint (2026-11-02)
+
+Applied only the three approved atomic migrations, preserving old Worker compatibility and all credential records/barriers. Corrected staging Auth redirects while retaining explicit localhost:3000/5173 development URLs. Deployed the pinned Worker/frontend with unchanged secret bindings, mock provider and all live hardware/polling gates disabled. User permits one refresh/discovery after ADMIN sign-in; linking is not authorized until real site details are shown and separately confirmed. Keep 230fecee as rollback; never restore older rotated tokens or delete records.
+
+## D-129 - Complete staged site setup through explicit user linking (2026-11-02)
+
+Following the real discovery details and confirmation request, the user performed the site-link UI
+action. Reconcile it read-only rather than repeating the mutation: the UI persisted UUID matches one
+hosted TESLA natural-key row, one creation audit and one idempotent result. The existing OAuth grant
+refreshed once with its durable encrypted attempt committed and staged payload cleared. Treat
+CONNECTING as link metadata only; retain mock telemetry, disabled controls/live status/automation
+and no cron. Staging acceptance is verified without reconnecting OAuth or activating hardware.
+Keep all current credentials/barriers/audits and the approved old Worker rollback target.
+
+## D-130 - Privacy-gated GitHub publication (2026-11-02)
+
+Keep Raj-AutoPW3 and the verified hosted deployment unchanged while preparing a portable publication.
+Remove private runtime/account identifiers from proposed docs/config, preserve originals locally,
+exclude generated/private operator files and provide credential-free onboarding and placeholders.
+Do not push while existing reachable personal email attribution remains unresolved. Any coordinated
+history rewrite requires separate explicit approval; no force-push or metadata rewrite is performed.
+
+## D-131 - Retain approved attribution and publish independent onboarding (2026-11-02)
+
+The owner explicitly permits existing ordinary Git author/committer attribution, including historical
+emails. Rechecking reachable contents/messages found no personal author emails outside attribution;
+history is retained without rewriting or force-pushing. Configure only this repository with the actual
+authenticated GitHub account's noreply address, verified from GitHub commit metadata, never guessed.
+Consolidate onboarding in DEVELOPER_SETUP.md with independent resources and actual runtime bindings.
+Remove unused legacy example variables and use a developer-specific staging Worker name/template so
+copying public config cannot target the owner's Worker. Preserve all hosted resources and mock/live
+safety boundaries. Commit/push normally only after final manifest, test, secret and privacy checks.
+
+Local Supabase config now explicitly matches frontend callback/reset URLs and the confirmation/
+12-character-password policy. CLI 2.122.0 accepts the file; full Docker startup is not claimed.
+Link-expiry race tests use database-clock deadlines with setup headroom after a missed-lock failure;
+denial/rollback assertions are unchanged and the full 726-check rerun passes. No hosted policy changed.

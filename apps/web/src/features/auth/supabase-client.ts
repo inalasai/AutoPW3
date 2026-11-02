@@ -1,7 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { InvitationTokenSchema, MembershipSummarySchema, UserProfileSchema } from '@autopw3/shared';
+import {
+  DiscoveredSitesResponseSchema,
+  ConnectTeslaResponseSchema,
+  ErrorResponseSchema,
+  InvitationTokenSchema,
+  MembershipSummarySchema,
+  TeslaSiteLinkRequestSchema,
+  TeslaSiteLinkResponseSchema,
+  UserProfileSchema,
+} from '@autopw3/shared';
 import type { MembershipSummary, UserProfile } from '@autopw3/shared';
+import { routePath } from '../../lib/api-contract';
+import { TeslaSiteFailure } from './tesla-sites';
+import type { TeslaSiteActor, TeslaSiteClient } from './tesla-sites';
 import { AuthFailure } from './types';
 import type { Account, AuthClient, AuthEvent, AuthFailureKind, AuthUser } from './types';
 
@@ -12,6 +24,10 @@ export interface SupabaseAuthConfig {
 }
 
 export interface SupabaseAuthOptions {
+  /** Exposes only staging discovery/linking, through the existing private session adapter. */
+  stagingTeslaSites?: boolean;
+  /** Enabled only by the explicit staging build; production auth behaviour is unchanged. */
+  stagingTeslaOAuthSessionPolicy?: boolean;
   /** Page origin used to build the links in emails. Defaults to `window.location.origin`. */
   origin?: string;
   /** Supply a client (tests). Defaults to a real one. */
@@ -119,6 +135,38 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+async function discoveryRecoveryKind(
+  response: Response,
+): Promise<'reauthorization_required' | 'recovery_required' | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  try {
+    const decoder = new TextDecoder();
+    let text = '';
+    let bytes = 0;
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > 4096) return null;
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    const envelope = ErrorResponseSchema.safeParse(JSON.parse(text + decoder.decode()));
+    if (!envelope.success || envelope.data.error.code !== 'CONFLICT') return null;
+    for (const detail of envelope.data.error.details ?? []) {
+      if (detail.path !== 'provider.tesla') continue;
+      if (detail.issue === 'TESLA_REAUTHORIZATION_REQUIRED') return 'reauthorization_required';
+      if (detail.issue === 'TESLA_RECOVERY_REQUIRED') return 'recovery_required';
+    }
+  } catch {
+    // Invalid/unknown error bodies never become UI messages or logs.
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+  return null;
+}
+
 /** A `user_profiles` row as a validated profile, or `null` for a row that is not valid. */
 function parseProfile(userId: string, row: unknown): UserProfile | null {
   const record = asRecord(row);
@@ -172,7 +220,216 @@ export function createSupabaseAuthClient(
   const origin = (): string => options.origin ?? window.location.origin;
   let signingOut = false;
 
+  async function siteRequest(
+    actor: TeslaSiteActor,
+    path: string,
+    mutation?: { providerSiteId: string; idempotencyKey: string } | { oauth: true },
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const timeout = setTimeout(abort, 30_000);
+    try {
+      if (signal?.aborted) throw new TeslaSiteFailure('cancelled');
+      const { data, error } = await supabase.auth.getSession();
+      const session = data.session;
+      if (
+        error !== null ||
+        !session ||
+        session.user.id !== actor.userId ||
+        !session.access_token ||
+        (session.expires_at !== undefined && session.expires_at <= Date.now() / 1000)
+      )
+        throw new TeslaSiteFailure('expired_session');
+      if (controller.signal.aborted) throw new TeslaSiteFailure('unavailable');
+      const base = new URL(origin());
+      if (base.protocol !== 'https:') throw new TeslaSiteFailure('unavailable');
+      const response = await globalThis.fetch(new URL(path, base.origin), {
+        method: mutation ? 'POST' : 'GET',
+        credentials: 'same-origin',
+        redirect: 'error',
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
+        signal: controller.signal,
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+          ...(mutation
+            ? {
+                'content-type': 'application/json',
+                ...('idempotencyKey' in mutation
+                  ? { 'Idempotency-Key': mutation.idempotencyKey }
+                  : {}),
+              }
+            : {}),
+        },
+        ...(mutation
+          ? {
+              body: JSON.stringify(
+                'oauth' in mutation
+                  ? { enableControls: false, restart: true }
+                  : { providerSiteId: mutation.providerSiteId },
+              ),
+            }
+          : {}),
+      });
+      if (!response.ok) {
+        // Only bounded, fixed recovery identifiers are recognized. All other error text is discarded.
+        if (response.status === 409 && !mutation) {
+          const recovery = await discoveryRecoveryKind(response);
+          if (recovery) throw new TeslaSiteFailure(recovery);
+        }
+        const kind =
+          response.status === 401
+            ? 'expired_session'
+            : response.status === 403
+              ? 'forbidden'
+              : response.status === 409
+                ? 'conflict'
+                : response.status === 429
+                  ? 'rate_limited'
+                  : response.status === 422
+                    ? 'invalid_request'
+                    : 'unavailable';
+        throw new TeslaSiteFailure(kind);
+      }
+      try {
+        return await response.json();
+      } catch {
+        throw new TeslaSiteFailure('invalid_response');
+      }
+    } catch (error) {
+      if (signal?.aborted) throw new TeslaSiteFailure('cancelled');
+      throw error instanceof TeslaSiteFailure ? error : new TeslaSiteFailure('unavailable');
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  const teslaSites: TeslaSiteClient = {
+    async connect(actor, signal) {
+      const response = ConnectTeslaResponseSchema.safeParse(
+        await siteRequest(
+          actor,
+          routePath('connectTesla', { hid: actor.householdId }),
+          { oauth: true },
+          signal,
+        ),
+      );
+      if (!response.success || response.data.authorizeUrl.length > 4096)
+        throw new TeslaSiteFailure('invalid_response');
+      const url = new URL(response.data.authorizeUrl);
+      const scopes = (url.searchParams.get('scope') ?? '').split(' ');
+      if (
+        url.origin !== 'https://auth.tesla.com' ||
+        url.pathname !== '/oauth2/v3/authorize' ||
+        url.username ||
+        url.password ||
+        url.hash ||
+        url.searchParams.get('redirect_uri') !== `${origin()}/api/v1/provider/tesla/callback` ||
+        url.searchParams.get('response_type') !== 'code' ||
+        url.searchParams.get('code_challenge_method') !== 'S256' ||
+        scopes.length !== 3 ||
+        new Set(scopes).size !== 3 ||
+        !['openid', 'offline_access', 'energy_device_data'].every((scope) => scopes.includes(scope))
+      )
+        throw new TeslaSiteFailure('invalid_response');
+      return response.data;
+    },
+    async discover(actor, signal) {
+      let path: string;
+      try {
+        path = routePath('listDiscoveredSites', { hid: actor.householdId });
+      } catch {
+        throw new TeslaSiteFailure('invalid_request');
+      }
+      const parsed = DiscoveredSitesResponseSchema.safeParse(
+        await siteRequest(actor, path, undefined, signal),
+      );
+      if (
+        !parsed.success ||
+        parsed.data.items.some(
+          (site) =>
+            !TeslaSiteLinkRequestSchema.safeParse({ providerSiteId: site.providerSiteId }).success,
+        ) ||
+        new Set(parsed.data.items.map((site) => site.providerSiteId)).size !==
+          parsed.data.items.length
+      )
+        throw new TeslaSiteFailure('invalid_response');
+      return parsed.data;
+    },
+    async link(actor, providerSiteId, idempotencyKey, signal) {
+      if (
+        !TeslaSiteLinkRequestSchema.safeParse({ providerSiteId }).success ||
+        !/^[A-Za-z0-9_-]{8,128}$/.test(idempotencyKey)
+      )
+        throw new TeslaSiteFailure('invalid_request');
+      let path: string;
+      try {
+        path = routePath('createSite', { hid: actor.householdId });
+      } catch {
+        throw new TeslaSiteFailure('invalid_request');
+      }
+      const parsed = TeslaSiteLinkResponseSchema.safeParse(
+        await siteRequest(actor, path, { providerSiteId, idempotencyKey }, signal),
+      );
+      if (
+        !parsed.success ||
+        parsed.data.site.householdId !== actor.householdId ||
+        parsed.data.site.providerSiteId !== providerSiteId
+      )
+        throw new TeslaSiteFailure('invalid_response');
+      return parsed.data;
+    },
+  };
+
+  async function revokeStagingSession(): Promise<void> {
+    const { data, error } = await supabase.auth.getSession();
+    if (error !== null) throw new AuthFailure(kindFromAuthError(error));
+    if (!data.session) return;
+    // This SDK method calls Auth's user logout endpoint with the user's JWT, never a service key.
+    // Revoke BEFORE local cleanup: SDK signOut otherwise clears storage even on a network failure.
+    const revoked = await supabase.auth.admin.signOut(data.session.access_token, 'local');
+    if (revoked.error !== null) throw new AuthFailure(kindFromAuthError(revoked.error));
+  }
+
   return {
+    ...(options.stagingTeslaSites ? { teslaSites } : {}),
+    async completeTeslaOAuth(completion) {
+      if (!options.stagingTeslaOAuthSessionPolicy) throw new AuthFailure('not_authorised');
+      const { data, error } = await supabase.auth.getSession();
+      if (error !== null || !data.session) throw new AuthFailure('expired_session');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30_000);
+      try {
+        const response = await globalThis.fetch(`${origin()}/api/v1/provider/tesla/callback`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          redirect: 'error',
+          signal: controller.signal,
+          headers: {
+            authorization: `Bearer ${data.session.access_token}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(completion),
+        });
+        if (!response.ok)
+          throw new AuthFailure(response.status === 401 ? 'expired_session' : 'not_authorised');
+        const result: unknown = await response.json();
+        if (
+          typeof result !== 'object' ||
+          result === null ||
+          !('connected' in result) ||
+          result.connected !== true
+        )
+          throw new AuthFailure('unknown');
+      } catch (caught) {
+        throw caught instanceof AuthFailure ? caught : new AuthFailure('network');
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
     async getUser(): Promise<AuthUser | null> {
       const { data, error } = await supabase.auth.getSession();
       if (error !== null) throw new AuthFailure(kindFromAuthError(error));
@@ -229,6 +486,11 @@ export function createSupabaseAuthClient(
     },
 
     async signIn(email, password) {
+      if (options.stagingTeslaOAuthSessionPolicy) {
+        await revokeStagingSession();
+        const cleanup = await supabase.auth.signOut({ scope: 'local' });
+        if (cleanup.error !== null) throw new AuthFailure(kindFromAuthError(cleanup.error));
+      }
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error !== null) throw new AuthFailure(kindFromAuthError(error));
     },
@@ -236,8 +498,9 @@ export function createSupabaseAuthClient(
     async signOut() {
       signingOut = true;
       try {
+        if (options.stagingTeslaOAuthSessionPolicy) await revokeStagingSession();
         const { error } = await supabase.auth.signOut({ scope: 'local' });
-        if (error !== null && !isNetworkError(error))
+        if (error !== null && (options.stagingTeslaOAuthSessionPolicy || !isNetworkError(error)))
           throw new AuthFailure(kindFromAuthError(error));
       } finally {
         signingOut = false;

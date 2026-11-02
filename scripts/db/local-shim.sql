@@ -21,6 +21,13 @@ create table if not exists auth.users (
   created_at timestamptz not null default now()
 );
 
+-- TEST-ONLY subset of Supabase Auth's revocable session ledger. Never applied hosted.
+create table if not exists auth.sessions (
+  id uuid primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  not_after timestamptz
+);
+
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'anon') then

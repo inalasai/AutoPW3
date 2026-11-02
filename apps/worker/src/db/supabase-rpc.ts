@@ -1,3 +1,5 @@
+import { supabaseFetch } from './supabase-fetch';
+
 export class SupabaseRpcError extends Error {
   constructor(
     readonly operation: string,
@@ -47,10 +49,9 @@ export class SupabaseRpcClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
-      const response = await this.fetcher(`${this.rpcBaseUrl}${name}`, {
+      const response = await supabaseFetch(this.fetcher, `${this.rpcBaseUrl}${name}`, {
         method: 'POST',
         headers: this.headers,
-        redirect: 'error',
         body: JSON.stringify(body),
         signal: controller.signal,
       });

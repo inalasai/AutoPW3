@@ -46,6 +46,7 @@ function fake(options: FakeOptions = {}) {
   const memberships = query(options.memberships ?? { data: [], error: null });
   let authListener: ((event: string) => void) | null = null;
   const auth = {
+    admin: { signOut: vi.fn(() => Promise.resolve({ error: null as unknown })) },
     getSession: vi.fn(() =>
       Promise.resolve({
         data: { session: options.session === undefined ? { user: USER } : options.session },
@@ -102,6 +103,94 @@ async function kindOf(promise: Promise<unknown>): Promise<string> {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe('staging Tesla completion session lifecycle', () => {
+  const current = { user: USER, access_token: 'fixture-current-session-token' };
+  function staging(session: unknown = current) {
+    const f = fake({ session });
+    return {
+      ...f,
+      api: createSupabaseAuthClient(
+        { url: 'https://example-project.supabase.co', anonKey: 'sb_publishable_test' },
+        { client: f.client, origin: 'https://app.example', stagingTeslaOAuthSessionPolicy: true },
+      ),
+    };
+  }
+  it('uses only the current SDK session and same-origin HttpOnly cookie for completion', async () => {
+    const f = staging();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ connected: true }));
+    vi.stubGlobal('fetch', fetcher);
+    await f.api.completeTeslaOAuth!({ state: HOUSEHOLD, code: 'fixture-code' });
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://app.example/api/v1/provider/tesla/callback',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'same-origin',
+        redirect: 'error',
+        headers: {
+          authorization: `Bearer ${current.access_token}`,
+          'content-type': 'application/json',
+        },
+      }),
+    );
+  });
+  it('does not send a callback after logout', async () => {
+    const f = staging(null);
+    const fetcher = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetcher);
+    expect(
+      await kindOf(f.api.completeTeslaOAuth!({ state: HOUSEHOLD, code: 'fixture-code' })),
+    ).toBe('expired_session');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('keeps production completion disabled', async () => {
+    const f = adapter();
+    expect(
+      await kindOf(f.api.completeTeslaOAuth!({ state: HOUSEHOLD, code: 'fixture-code' })),
+    ).toBe('not_authorised');
+    expect(f.auth.getSession).not.toHaveBeenCalled();
+  });
+  it('revokes the current Auth session before signing out locally', async () => {
+    const f = staging();
+    await f.api.signOut();
+    expect(f.auth.admin.signOut).toHaveBeenCalledWith(current.access_token, 'local');
+    expect(f.auth.admin.signOut.mock.invocationCallOrder[0]).toBeLessThan(
+      f.auth.signOut.mock.invocationCallOrder[0]!,
+    );
+  });
+  it('revokes account A before allowing sign-in as B', async () => {
+    const f = staging();
+    await f.api.signIn('b@example.test', 'fixture-password');
+    expect(f.auth.admin.signOut.mock.invocationCallOrder[0]).toBeLessThan(
+      f.auth.signInWithPassword.mock.invocationCallOrder[0]!,
+    );
+  });
+  it.each(['logout', 'switch'])('refuses %s if remote session revocation fails', async (kind) => {
+    const f = staging();
+    f.auth.admin.signOut.mockResolvedValue({
+      error: new AuthRetryableFetchError('fixture-private-body', 0),
+    });
+    expect(
+      await kindOf(
+        kind === 'logout' ? f.api.signOut() : f.api.signIn('b@example.test', 'fixture-password'),
+      ),
+    ).toBe('network');
+    expect(f.auth.signOut).not.toHaveBeenCalled();
+    expect(f.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+  it('sanitizes failed callback responses without exposing code, session or provider body', async () => {
+    const f = staging();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response('fixture-private-provider-body', { status: 502 })),
+    );
+    const operation = f.api.completeTeslaOAuth!({ state: HOUSEHOLD, code: 'fixture-code' });
+    expect(await kindOf(operation)).toBe('not_authorised');
+  });
 });
 
 describe('error mapping', () => {

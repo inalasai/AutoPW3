@@ -223,6 +223,8 @@ export type OperationMode = (typeof OPERATION_MODES)[number];
 
 /** audit_log.action values the database writes (private.touch_audit allowlist). */
 export const AUDIT_ACTIONS = [
+  'tesla.token_refreshed',
+  'tesla.reauth_required',
   'member.added',
   'member.role_changed',
   'member.removed',

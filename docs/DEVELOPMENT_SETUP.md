@@ -1,5 +1,8 @@
 # Development Setup
 
+Current authoritative Windows onboarding is [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md). This document
+retains historical task/toolchain notes; use the current guide for account setup, bindings and safety.
+
 Status: **created in TASK-02.** Commands below were run on Windows 11 with Node 24 and npm 11; CI uses Node 22 on Ubuntu (not yet executed, see `docs/handoffs/TASK-02.md`).
 
 ## Requirements

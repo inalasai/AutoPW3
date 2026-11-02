@@ -39,7 +39,7 @@ function fixture(actor = ACTOR_A, household = HOUSEHOLD_A, token = 'synthetic-us
     const table = url.pathname.split('/').at(-1)!;
     expect(url.origin).toBe('https://project.supabase.co');
     expect(init?.method).toBe('GET');
-    expect(init?.redirect).toBe('error');
+    expect(init?.redirect).toBe('manual');
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     const headers = new Headers(init?.headers);
     expect(headers.get('apikey')).toBe('synthetic-public-key');

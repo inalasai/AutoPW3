@@ -11,6 +11,48 @@ function getRequestBody(init: RequestInit | undefined): Record<string, unknown> 
 }
 
 describe('SupabaseTokenStore', () => {
+  it('uses only the fenced OAuth RPC with verified session and owner, and never falls back after failure', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('false'));
+    const store = new SupabaseTokenStore(
+      'https://project.supabase.co',
+      'fixture-service',
+      createEncryptionKey(),
+      1,
+      fetcher,
+    );
+    const fence = {
+      sessionId: crypto.randomUUID(),
+      leaseOwner: crypto.randomUUID(),
+      sessionExpiresAt: 1_900_000_000,
+    };
+    await expect(
+      store.saveTokensForFencedOAuth(
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+        {
+          accessToken: 'fixture-private-access',
+          refreshToken: 'fixture-private-refresh',
+          expiresAt: 1_900_000_000,
+          tokenType: 'Bearer',
+          scope: 'openid offline_access energy_device_data',
+          regionBaseUrl: 'https://fleet-api.prd.eu.vn.cloud.tesla.com',
+        },
+        fence,
+      ),
+    ).rejects.toThrow('Tesla credential persistence failed');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(String(fetcher.mock.calls[0]![0])).toMatch(
+      /\/worker_save_tesla_credentials_fenced_for_oauth$/,
+    );
+    const body = getRequestBody(fetcher.mock.calls[0]![1]);
+    expect(body).toMatchObject({
+      p_session_id: fence.sessionId,
+      p_owner: fence.leaseOwner,
+      p_session_expires_at: new Date(fence.sessionExpiresAt * 1000).toISOString(),
+    });
+    expect(JSON.stringify(body)).not.toContain('fixture-private-access');
+    expect(JSON.stringify(body)).not.toContain('fixture-private-refresh');
+  });
   it.each(['', 'not-a-uuid'])(
     'never selects the unscoped save RPC for invalid OAuth actor %s',
     async (userId) => {

@@ -16,7 +16,13 @@ export async function createAuthClient(auth: AuthConfig): Promise<AuthClient | n
       return null;
     case 'supabase': {
       const { createSupabaseAuthClient } = await import('./supabase-client');
-      return createSupabaseAuthClient({ url: auth.url, anonKey: auth.anonKey });
+      return createSupabaseAuthClient(
+        { url: auth.url, anonKey: auth.anonKey },
+        {
+          stagingTeslaOAuthSessionPolicy: import.meta.env.MODE === 'staging',
+          stagingTeslaSites: import.meta.env.MODE === 'staging',
+        },
+      );
     }
     case 'mock': {
       if (import.meta.env.DEV) {

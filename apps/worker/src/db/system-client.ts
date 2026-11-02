@@ -1,6 +1,11 @@
 import { SupabaseRpcClient } from './supabase-rpc';
 
 export type PrivilegedRpcName =
+  | 'worker_stage_tesla_discovery_refresh'
+  | 'worker_prepare_tesla_site_link'
+  | 'worker_begin_tesla_oauth'
+  | 'worker_validate_tesla_oauth_session'
+  | 'worker_save_tesla_credentials_fenced_for_oauth'
   | 'worker_acquire_lock'
   | 'worker_check_rate_limit'
   | 'worker_claim_jobs'
@@ -23,6 +28,11 @@ export interface PrivilegedRpcClient {
 }
 
 const PRIVILEGED_RPC_NAMES: ReadonlySet<string> = new Set([
+  'worker_stage_tesla_discovery_refresh',
+  'worker_prepare_tesla_site_link',
+  'worker_begin_tesla_oauth',
+  'worker_validate_tesla_oauth_session',
+  'worker_save_tesla_credentials_fenced_for_oauth',
   'worker_acquire_lock',
   'worker_check_rate_limit',
   'worker_claim_jobs',

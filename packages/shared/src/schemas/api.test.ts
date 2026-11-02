@@ -14,6 +14,28 @@ import {
 import { ChangeMemberRoleRequestSchema } from './identity';
 
 describe('error envelope', () => {
+  it.each(['TESLA_REAUTHORIZATION_REQUIRED', 'TESLA_RECOVERY_REQUIRED'])(
+    'accepts only the fixed Tesla recovery conflict %s',
+    (issue) => {
+      const body = buildErrorResponse({
+        code: 'CONFLICT',
+        message: 'Recovery required',
+        requestId: 'r',
+        details: [{ path: 'provider.tesla', issue }],
+      });
+      expect(ErrorResponseSchema.safeParse(body).success).toBe(true);
+      expect(
+        ErrorResponseSchema.safeParse({
+          error: { ...body.error, details: [{ path: 'other', issue }] },
+        }).success,
+      ).toBe(false);
+      expect(
+        ErrorResponseSchema.safeParse({
+          error: { ...body.error, details: [...body.error.details!, ...body.error.details!] },
+        }).success,
+      ).toBe(false);
+    },
+  );
   it('accepts a code, message and request id', () => {
     const body = buildErrorResponse({
       code: 'FORBIDDEN',

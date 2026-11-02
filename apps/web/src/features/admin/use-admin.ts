@@ -120,12 +120,15 @@ function downloadBlob(filename: string, content: string): void {
 
 export function useAdmin(): UseAdminReturn {
   const auth = useOptionalAuth();
+  const stagingTeslaSites = auth?.teslaSites != null;
 
   const [members, setMembers] = useState<readonly MemberRow[]>(DEMO_MEMBERS);
   const [invitations, setInvitations] = useState<readonly InvitationRow[]>(DEMO_INVITATIONS);
   const [auditEntries, setAuditEntries] = useState<readonly AuditEntry[]>(DEMO_AUDIT_LOGS);
   const [settings, setSettings] = useState<HouseholdSettingsData | null>(DEMO_SETTINGS);
-  const [teslaLink, setTeslaLink] = useState<TeslaLinkData | null>(DEMO_TESLA_LINK);
+  const [teslaLink, setTeslaLink] = useState<TeslaLinkData | null>(
+    stagingTeslaSites ? null : DEMO_TESLA_LINK,
+  );
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,12 +157,15 @@ export function useAdmin(): UseAdminReturn {
       }
 
       // 2. Tesla link
-      const teslaRes = await fetch(`/api/v1/households/${householdId}/provider/tesla`).catch(
-        () => null,
-      );
-      if (teslaRes && teslaRes.ok) {
-        const data = (await teslaRes.json()) as TeslaLinkData;
-        setTeslaLink(data);
+      // The staging workflow uses authenticated discovery/link responses, never the demo status.
+      if (!stagingTeslaSites) {
+        const teslaRes = await fetch(`/api/v1/households/${householdId}/provider/tesla`).catch(
+          () => null,
+        );
+        if (teslaRes && teslaRes.ok) {
+          const data = (await teslaRes.json()) as TeslaLinkData;
+          setTeslaLink(data);
+        }
       }
 
       // 3. Members (requires ADMIN in live)
@@ -193,7 +199,7 @@ export function useAdmin(): UseAdminReturn {
     } finally {
       setLoading(false);
     }
-  }, [householdId]);
+  }, [householdId, stagingTeslaSites]);
 
   useEffect(() => {
     refresh();

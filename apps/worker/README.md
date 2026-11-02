@@ -41,3 +41,9 @@ Unit and API tests as `*.test.ts` beside code, using a fake clock and the mock T
 
 ## Phase 3 manual live-status slice
 **Status:** `STAGING_TESLA_LIVE_STATUS_ENABLED=true` separately permits only staging GET/GET-only OPTIONS at `/api/v1/households/{householdId}/sites/{siteId}/provider/tesla/live-status`. All three household roles may read an authorized persisted site. It uses RLS site reads, existing encrypted credentials and durable per-actor rate limiting; no telemetry writes, demo fallback, refresh or command execution. Native Tesla signs are explicitly labelled and absent measurements/timestamps remain null. The flag is false in the example and absent from Wrangler. See [Phase 3 handoff](../../docs/handoffs/PHASE-3-TESLA-LIVE-STATUS.md).
+# Portable local configuration
+
+Status: `.dev.vars.example` needs no credentials for local mocks. `wrangler.developer.example.jsonc`
+is a complete portable example to copy to an ignored private override and rename for your own account.
+The committed staging Worker name is a developer placeholder; do not target the existing team Worker.
+Mock provider/live-status-off are preserved. See [developer setup](../../docs/DEVELOPER_SETUP.md).

@@ -100,7 +100,7 @@ describe('Tesla Client & Telemetry Normalisation', () => {
       const client = new TeslaClient(async (url, init) => {
         expect(String(url)).toBe(`${baseUrl}/api/1/energy_sites/9007199254740993/live_status`);
         expect(init?.method).toBe('GET');
-        expect(init?.redirect).toBe('error');
+        expect(init?.redirect).toBe('manual');
         expect(init?.signal).toBeInstanceOf(AbortSignal);
         return Response.json({ response: { grid_power: 0 } });
       });

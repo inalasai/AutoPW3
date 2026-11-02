@@ -1,5 +1,9 @@
 # Documentation index
 
+Status: [Windows developer setup](DEVELOPER_SETUP.md) is the authoritative complete onboarding guide.
+The [secure publication handoff](handoffs/SECURE-GITHUB-PUBLICATION.md) records attribution approval,
+privacy checks and publication evidence. Private runtime values are excluded.
+
 | Area | Documents | Produced in |
 |---|---|---|
 | Build instructions | [`ai-build-kit/`](ai-build-kit/00-README.md) | kit |
@@ -22,3 +26,16 @@ Documents listed without a link are created by the task shown; they do not exist
 - [Stage 1 durable runtime audit](DURABLE_RUNTIME_STAGE1_AUDIT.md): entry-point dependency map, fail-closed behavior, and repository/idempotency blockers.
 - [Actor-aware durable repository architecture](DURABLE_REPOSITORY_ARCHITECTURE.md): method-level access, transaction/idempotency boundaries, runtime wiring, and implementation plan.
 - [Authenticated identity repository stage](DURABLE_IDENTITY_STAGE1.md): delivered method scope, JWT/RLS runtime path, verification and remaining blockers.
+
+
+**Status: staging discovery refresh contract documented.**
+[Tesla discovery refresh](TESLA_DISCOVERY_REFRESH.md) records pre-code decisions about rotation
+ambiguity, actual-user commit authority, request budgets, durable fencing and operational recovery.
+
+Status: the [expired READY recovery handoff](handoffs/TESLA-DISCOVERY-REFRESH-RECOVERY.md) records the
+local follow-up to the discovery refresh deployment-readiness review. Hosted rollout remains separate.
+
+Status: [staging integration](handoffs/TESLA-STAGING-INTEGRATION.md) records the complete local audit,
+actual hosted preflight and [approval-gated rollout sequence](TESLA_STAGING_ROLLOUT.md).
+
+Status: hosted staging workflow VERIFIED on 2026-11-02. Three approved forward migrations and Worker REDACTED_RUNTIME_ID are installed; real ADMIN login, safe refresh, discovery and user-performed linking are verified with one persisted site/audit. Live telemetry, controls, automation and cron remain disabled. Fresh OAuth consent was not repeated. See the [final handoff](handoffs/TESLA-STAGING-INTEGRATION.md).

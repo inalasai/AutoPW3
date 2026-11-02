@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { PageHeader } from '../../components/ui/display';
 import { Tabs } from '../../components/ui/Tabs';
-import { usePermissions } from '../auth/AuthProvider';
+import { useOptionalAuth, usePermissions } from '../auth/AuthProvider';
 import { AuditLogViewer } from './AuditLogViewer';
 import { InvitationList } from './InvitationList';
 import { InviteMemberModal } from './InviteMemberModal';
 import { MemberList } from './MemberList';
 import { PrivacySection } from './PrivacySection';
 import { SettingsManager } from './SettingsManager';
+import { TeslaSiteSetup } from './TeslaSiteSetup';
 import { useDocumentTitle } from '../../app/pages/Page';
 import type { AdminTab } from './types';
 import { useAdmin } from './use-admin';
@@ -25,6 +26,7 @@ export function AdminPanel({
 }: AdminPanelProps) {
   useDocumentTitle(title);
   const { canAdmin } = usePermissions();
+  const auth = useOptionalAuth();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const {
@@ -88,6 +90,7 @@ export function AdminPanel({
       label: 'Household Settings',
       panel: (
         <SettingsManager
+          teslaSiteSetup={auth?.teslaSites ? <TeslaSiteSetup /> : undefined}
           settings={settings}
           teslaLink={teslaLink}
           canAdmin={canAdmin}

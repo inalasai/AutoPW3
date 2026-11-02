@@ -27,3 +27,18 @@ The single source of truth for TypeScript types, Zod schemas, constants and gene
 Valid and invalid payload tests beside each schema (`*.test.ts`), compile-time checks with `expectTypeOf`, and the drift tests in `src/contract/`.
 
 **Phase 3 status:** `schemas/provider-live-status.ts` exports `ProviderLiveStatusSchema` and its inferred type for the gated manual staging snapshot. This explicitly labels provider-native signs and nullable measurements/timestamp; it is separate from normalized `LiveReading`/persisted samples and is not an accounting or capability model. There is no production or general route-table expansion.
+
+**Staging onboarding:** `TeslaSiteLinkRequestSchema` and `TeslaSiteLinkResponseSchema` in
+`schemas/sites.ts` define the gated site-selection request and durable metadata response. They accept
+no caller-selected household/name/timezone/control fields and invent no capabilities. Existing general
+route contracts are unchanged; the isolated staging exception returns `{created, site}` metadata.
+
+
+**Status: discovery refresh audit/type contract updated locally.** Adds only the
+`tesla.token_refreshed` and `tesla.reauth_required` audit actions. Database types were regenerated from
+all current migrations; the compile-time authenticated RPC union includes existing site linking and
+three new discovery refresh RPCs. Service-only staging and private encrypted records are not exposed
+by that authenticated function surface.
+
+Status: error details accept exactly the two fixed Tesla recovery CONFLICT states in addition to
+validation details. Other non-validation detail payloads remain invalid.

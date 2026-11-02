@@ -1,5 +1,10 @@
 # AutoPW3
 
+Status: [Windows developer setup](docs/DEVELOPER_SETUP.md) is the authoritative guide for credential-free
+mock development, independent cloud/Tesla setup and team contributions. Historical Git attribution is
+retained with owner approval; [publication evidence](docs/handoffs/SECURE-GITHUB-PUBLICATION.md) records
+the security checks and verified publication state.
+
 **Subscription-free residential energy management for Tesla Powerwall sites.**  
 Live energy-flow visualization, tariff-aware analytics, supported device controls, safe automation, and household administration.
 
@@ -122,3 +127,7 @@ To report security issues, review [SECURITY.md](SECURITY.md).
 ## License
 
 All rights reserved until a public license is designated by the project owner.
+
+Staging Tesla integration status and approval boundaries are recorded in
+[the integration handoff](docs/handoffs/TESLA-STAGING-INTEGRATION.md) and
+[the rollout plan](docs/TESLA_STAGING_ROLLOUT.md). Local tests do not establish hosted success.

@@ -1,6 +1,6 @@
 # supabase — database
 
-**Status:** 13 migrations, 29 tables, 52 RLS policies, 8 audited `public` functions plus helpers in schema `private`, local `seed.sql`, 12 SQL test files and 356 passing assertions on throwaway PostgreSQL 17.10 with a test shim. A new forward migration restricts profile directory reads to admins of shared households. `supabase db reset`, `supabase test db` and the hand-written `config.toml` remain `NOT_EXECUTED` / `UNVERIFIED` (L-026, L-027, L-033). See `docs/DATABASE_SETUP.md`.
+**Status:** 22 migrations, 30 public design tables, 52 RLS policies and 24 SQL test files; 726 local checks include SQL security, concurrency and atomic-install verification on throwaway PostgreSQL 17.10. The local config parses with Supabase CLI 2.122.0 and explicitly allows Auth callbacks/reset, confirms email and requires 12-character passwords. Full Docker `supabase start/reset/test db` remains NOT_EXECUTED here; Docker is unavailable. See [developer setup](../docs/DEVELOPER_SETUP.md) and the [publication handoff](../docs/handoffs/SECURE-GITHUB-PUBLICATION.md).
 
 ## Purpose
 The PostgreSQL schema, Row Level Security policies, database functions, SQL security tests and local seed data. The database is authoritative for access control.
@@ -11,7 +11,7 @@ The PostgreSQL schema, Row Level Security policies, database functions, SQL secu
 | `migrations/` | Versioned SQL, `YYYYMMDDHHMMSS_<verb>_<noun>.sql`. Never edit a merged migration; add a new one. Includes the profile isolation hardening migration. |
 | `tests/` | pgTAP-style security tests (`tests/database/*.test.sql`); see `tests/README.md` |
 | `seed.sql` | **Local only**, labelled, no real credentials |
-| `config.toml` | Supabase CLI configuration (hand-written, `UNVERIFIED`) |
+| `config.toml` | Local-only Supabase CLI config; parser verified, full Docker startup not executed |
 
 ## Rules
 - RLS enabled on every exposed table with explicit grants. `anon` has no access.
@@ -28,6 +28,6 @@ npm run db:verify      # TASK-03: apply migrations to a throwaway PostgreSQL 17 
 npm run db:test        # TASK-04: SQL security tests on the same throwaway server (verified)
 npm run db:dictionary  # same as db:verify, and regenerate docs/DATABASE_DICTIONARY.md
 npm run db:reset       # supabase db reset (needs Docker; NOT_EXECUTED so far)
-npm run db:types       # TASK-05: regenerate packages/shared/src/db/database.types.ts (not available yet)
+npm run db:types -- --check # verify generated database types without rewriting them
 ```
 Design docs: `docs/DATABASE_DESIGN.md`, `docs/RLS_POLICY_MATRIX.md`, `docs/ADMIN_BOOTSTRAP.md`.

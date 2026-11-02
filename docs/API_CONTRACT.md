@@ -140,3 +140,12 @@ Per authenticated user: 120 requests per minute general; 30 per minute on mutati
 ## 5. Authorisation matrix pointer
 
 The route × role matrix is the table in §2 (Min role column) and must equal `SECURITY_MODEL.md` §2.1. TASK-14 produces executable tests for every route with READ_ONLY, READ_WRITE, ADMIN, cross-household and unauthenticated tokens.
+
+
+## Staging Tesla recovery conflicts (2026-11-02)
+
+Discovery may return HTTP 409 CONFLICT with exactly one detail at `provider.tesla`: issue
+`TESLA_REAUTHORIZATION_REQUIRED` or `TESLA_RECOVERY_REQUIRED`. These two fixed states are the sole
+non-validation exception for error details. They never carry provider/database text or credentials.
+The browser preserves the Supabase session and stops rediscovery until an ADMIN explicitly recovers
+the connection. Unknown conflict bodies retain generic conflict handling.

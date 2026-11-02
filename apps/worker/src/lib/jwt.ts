@@ -3,6 +3,9 @@ import * as jose from 'jose';
 export interface VerifiedUser {
   readonly userId: string;
   readonly email?: string | undefined;
+  /** Present only when this caller requires a revocable Supabase Auth session. */
+  readonly sessionId?: string | undefined;
+  readonly expiresAt?: number | undefined;
 }
 
 export interface JwtVerifyConfig {
@@ -11,6 +14,7 @@ export interface JwtVerifyConfig {
   readonly jwksUrl?: string | undefined;
   /** Optional recipient constraint; the staging identity slice requires authenticated. */
   readonly audience?: string | undefined;
+  readonly requireSessionId?: boolean | undefined;
   /** In-memory test JWKS or public key for unit testing without network. */
   readonly testKeySet?: jose.JWTVerifyGetKey | CryptoKey | Uint8Array | undefined;
 }
@@ -123,8 +127,21 @@ export async function verifySupabaseJwt(
     throw new Error('Token role is not authenticated');
   }
 
+  if (
+    config.requireSessionId &&
+    (typeof payload['session_id'] !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        payload['session_id'],
+      ))
+  ) {
+    throw new Error('Missing or invalid session claim');
+  }
+
   return {
     userId: payload.sub,
     email: typeof payload['email'] === 'string' ? payload['email'] : undefined,
+    ...(config.requireSessionId
+      ? { sessionId: payload['session_id'] as string, expiresAt: payload.exp }
+      : {}),
   };
 }

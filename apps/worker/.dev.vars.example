@@ -1,0 +1,20 @@
+# Copy to apps/worker/.dev.vars. Mock development does not require credentials.
+ENVIRONMENT=local
+LOCAL_MOCKS=true
+PROVIDER_MODE=mock
+ALLOWED_ORIGINS=http://localhost:5173
+APP_BASE_URL=http://localhost:5173
+STAGING_IDENTITY_READ_ENABLED=false
+STAGING_TESLA_OAUTH_ENABLED=false
+STAGING_TESLA_SITES_ENABLED=false
+STAGING_TESLA_LIVE_STATUS_ENABLED=false
+# Optional own isolated environment: replace placeholders privately, never in Git.
+# SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+# SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_OR_PUBLISHABLE_KEY
+# SUPABASE_SECRET_KEY=YOUR_SERVER_ONLY_LEGACY_SERVICE_ROLE_JWT
+# TESLA_CLIENT_ID=YOUR_OWN_CLIENT_ID
+# TESLA_CLIENT_SECRET=YOUR_SERVER_ONLY_CLIENT_SECRET
+# TESLA_REDIRECT_URI=https://staging.example.invalid/api/v1/provider/tesla/callback
+# TESLA_FLEET_API_BASE_URL=YOUR_APPROVED_EU_OR_NA_FLEET_ORIGIN
+# TOKEN_ENCRYPTION_KEY=YOUR_LOCALLY_GENERATED_32_BYTE_BASE64_KEY
+# Runtime uses envelope key version 1; changing the encryption key needs a separate migration plan.

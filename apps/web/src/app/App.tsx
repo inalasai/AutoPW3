@@ -37,6 +37,15 @@ const ComponentCatalogue = import.meta.env.DEV
   ? lazy(() => import('./dev/ComponentCatalogue').then((m) => ({ default: m.ComponentCatalogue })))
   : null;
 
+const TeslaOAuthCallback =
+  import.meta.env.MODE === 'staging'
+    ? lazy(() =>
+        import('../features/auth/pages/TeslaOAuthCallbackPage').then((m) => ({
+          default: m.TeslaOAuthCallbackPage,
+        })),
+      )
+    : null;
+
 export interface AppFrameProps {
   config: AppConfig;
   /**
@@ -69,6 +78,16 @@ function AppRoutes({ config }: { config: AppConfig }) {
         </Route>
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        {TeslaOAuthCallback !== null ? (
+          <Route
+            path="/auth/tesla/callback"
+            element={
+              <Suspense fallback={<p>Loading connection…</p>}>
+                <TeslaOAuthCallback />
+              </Suspense>
+            }
+          />
+        ) : null}
         <Route path="/invite/:token" element={<InvitePage />} />
       </Route>
       <Route

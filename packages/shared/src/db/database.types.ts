@@ -1402,6 +1402,27 @@ export type Database = {
           },
         ];
       };
+      worker_rate_limit_buckets: {
+        Row: {
+          key_hash: string;
+          window_started_at: string;
+          hit_count: number;
+          expires_at: string;
+        };
+        Insert: {
+          key_hash: string;
+          window_started_at: string;
+          hit_count: number;
+          expires_at: string;
+        };
+        Update: {
+          key_hash?: string;
+          window_started_at?: string;
+          hit_count?: number;
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -1412,6 +1433,15 @@ export type Database = {
           p_token: string;
         };
         Returns: string;
+      };
+      begin_tesla_discovery_refresh: {
+        Args: {
+          p_household_id: string;
+          p_revision: string;
+          p_owner: string;
+          p_deadline: string;
+        };
+        Returns: Json;
       };
       change_member_role: {
         Args: {
@@ -1430,11 +1460,27 @@ export type Database = {
         };
         Returns: { invitation_id: string; invitation_token: string; invitation_expires_at: string }[];
       };
+      finish_tesla_discovery_refresh: {
+        Args: {
+          p_household_id: string;
+          p_attempt_id: string;
+          p_owner: string;
+        };
+        Returns: Json;
+      };
       leave_household: {
         Args: {
           p_household_id: string;
         };
         Returns: undefined;
+      };
+      link_discovered_tesla_site: {
+        Args: {
+          p_household_id: string;
+          p_proof_id: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
       };
       remove_member: {
         Args: {
@@ -1463,11 +1509,23 @@ export type Database = {
         };
         Returns: undefined;
       };
+      tesla_discovery_refresh_context: {
+        Args: {
+          p_household_id: string;
+        };
+        Returns: Json;
+      };
+      tesla_site_link_context: {
+        Args: {
+          p_household_id: string;
+        };
+        Returns: Json;
+      };
       update_household: {
         Args: {
           p_household_id: string;
-          p_name?: string | null;
-          p_timezone?: string | null;
+          p_name?: string;
+          p_timezone?: string;
         };
         Returns: { id: string; name: string; timezone: string }[];
       };

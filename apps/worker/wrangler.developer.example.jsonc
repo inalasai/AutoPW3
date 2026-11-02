@@ -1,0 +1,46 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "autopw3-yourname-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "vars": {
+    "ENVIRONMENT": "local",
+    "LOCAL_MOCKS": "true",
+    "PROVIDER_MODE": "mock",
+    "ALLOWED_ORIGINS": "http://localhost:5173",
+    "APP_BASE_URL": "http://localhost:5173",
+  },
+  "env": {
+    "staging": {
+      "name": "autopw3-yourname-staging",
+      "assets": {
+        "directory": "../web/dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api/*"],
+      },
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "LOCAL_MOCKS": "false",
+        "PROVIDER_MODE": "mock",
+        "ALLOWED_ORIGINS": "https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev",
+        "APP_BASE_URL": "https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev",
+        "SUPABASE_URL": "https://YOUR_PROJECT_REF.supabase.co",
+        "SUPABASE_ANON_KEY": "YOUR_PUBLIC_ANON_OR_PUBLISHABLE_KEY",
+        "TESLA_CLIENT_ID": "YOUR_TESLA_CLIENT_ID",
+        "TESLA_REDIRECT_URI": "https://YOUR_WORKER.YOUR_SUBDOMAIN.workers.dev/api/v1/provider/tesla/callback",
+        "TESLA_FLEET_API_BASE_URL": "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+        "STAGING_IDENTITY_READ_ENABLED": "true",
+        "STAGING_TESLA_OAUTH_ENABLED": "true",
+        "STAGING_TESLA_SITES_ENABLED": "true",
+        "STAGING_TESLA_LIVE_STATUS_ENABLED": "false",
+      },
+    },
+  },
+}

@@ -35,6 +35,7 @@ import { matchRoute } from './router';
 import { handleStagingIdentityRequest } from './staging-identity';
 import { handleStagingTeslaOAuthRequest } from './staging-tesla-oauth';
 import { handleStagingTeslaLiveStatusRequest } from './staging-tesla-live-status';
+import { handleStagingTeslaSitesRequest } from './staging-tesla-sites';
 
 // Route handlers
 import {
@@ -164,6 +165,8 @@ export async function handleApiRequest(
     requestId,
   );
   if (stagingLiveStatusResponse) return stagingLiveStatusResponse;
+  const stagingSitesResponse = await handleStagingTeslaSitesRequest(request, env, requestId);
+  if (stagingSitesResponse) return stagingSitesResponse;
 
   // Production and staging are deliberately unavailable until durable PostgreSQL-backed adapters
   // for repository, tokens, OAuth state, idempotency and rate limiting are wired into the entry point.

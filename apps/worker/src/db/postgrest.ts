@@ -1,3 +1,5 @@
+import { supabaseFetch } from './supabase-fetch';
+
 /** Request-scoped authenticated PostgREST transport. Construct only after JWT verification. */
 export class SupabasePostgrestError extends Error {
   constructor(
@@ -19,6 +21,8 @@ const SAFE_DATABASE_TAGS = new Set([
   'member_not_found',
   'not_authorised',
   'self_change_not_allowed',
+  'refresh_recovery_required',
+  'tesla_reauthorization_required',
 ]);
 
 export class AuthenticatedPostgrestClient {
@@ -75,10 +79,9 @@ export class AuthenticatedPostgrestClient {
     const headers = new Headers(this.headers);
     if (returnRepresentation) headers.set('prefer', 'return=representation');
     try {
-      const response = await this.fetcher(`${this.restUrl}${path}`, {
+      const response = await supabaseFetch(this.fetcher, `${this.restUrl}${path}`, {
         method,
         headers,
-        redirect: 'error',
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: controller.signal,
       });

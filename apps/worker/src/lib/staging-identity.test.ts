@@ -25,6 +25,7 @@ describe('staging identity through the Worker fetch entrypoint', () => {
   let profileResponse: Response | undefined;
   let membershipResponse: Response | undefined;
   let rateResponse: Response | undefined;
+  let beforeRate: ((signal: AbortSignal) => Promise<Response>) | undefined;
   let beforeProfile: ((actor: string, signal: AbortSignal) => Promise<void>) | undefined;
 
   async function sign(
@@ -64,6 +65,7 @@ describe('staging identity through the Worker fetch entrypoint', () => {
     };
     profileResponse = membershipResponse = rateResponse = undefined;
     beforeProfile = undefined;
+    beforeRate = undefined;
     tokenA = await sign(USER_A);
     tokenB = await sign(USER_B);
     const jwk = await exportJWK((await getTestAuthKeys()).publicKey);
@@ -74,7 +76,7 @@ describe('staging identity through the Worker fetch entrypoint', () => {
         return Response.json({ keys: [{ ...jwk, kid: 'staging-test', alg: 'RS256' }] });
       }
       const headers = new Headers(init?.headers);
-      expect(init?.redirect).toBe('error');
+      expect(init?.redirect).toBe('manual');
       if (url.pathname === '/rest/v1/rpc/worker_check_rate_limit') {
         expect(init?.method).toBe('POST');
         expect(headers.get('authorization')).toBe(`Bearer ${env.SUPABASE_SECRET_KEY}`);
@@ -82,6 +84,7 @@ describe('staging identity through the Worker fetch entrypoint', () => {
         const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
         expect(body).toMatchObject({ p_limit: 120, p_window_seconds: 60 });
         expect(body.p_key_hash).toMatch(/^\\x[0-9a-f]{64}$/);
+        if (beforeRate) return beforeRate(init!.signal!);
         return rateResponse?.clone() ?? Response.json([{ allowed: true, retry_after_seconds: 60 }]);
       }
       expect(init?.method).toBe('GET');
@@ -152,6 +155,34 @@ describe('staging identity through the Worker fetch entrypoint', () => {
     expect(response.headers.get('idempotent-replay')).toBeNull();
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     expect(network).toHaveBeenCalledTimes(4);
+  });
+
+  it('uses a Workers-compatible receiver and redirect mode for all identity requests', async () => {
+    const dataPaths: string[] = [];
+    const receiverSensitiveFetch: typeof fetch = function (this: unknown, input, init) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Invalid fetch receiver');
+      if (init?.redirect === 'error') throw new TypeError('Unsupported redirect mode');
+      const path = new URL(String(input)).pathname;
+      if (path.startsWith('/rest/v1/')) {
+        expect(this === globalThis).toBe(true);
+        dataPaths.push(path);
+      }
+      return network(input, init);
+    };
+    const badHolder = { fetcher: receiverSensitiveFetch };
+    expect(() => badHolder.fetcher('https://receiver.invalid')).toThrow('Invalid fetch receiver');
+    vi.stubGlobal('fetch', receiverSensitiveFetch);
+
+    const response = await request();
+    expect(response.status).toBe(200);
+    const body = MeResponseSchema.parse(await response.json());
+    expect(body.profile.userId).toBe(USER_A);
+    expect(body.memberships[0]?.householdId).toBe(HOUSEHOLD_A);
+    expect(dataPaths).toEqual([
+      '/rest/v1/rpc/worker_check_rate_limit',
+      '/rest/v1/user_profiles',
+      '/rest/v1/household_members',
+    ]);
   });
 
   it('keeps interleaved actors, JWTs and hashed rate-limit scopes independent', async () => {
@@ -236,6 +267,7 @@ describe('staging identity through the Worker fetch entrypoint', () => {
   });
 
   it('keeps every other API route, method, path variant and production request blocked', async () => {
+    const diagnostic = vi.spyOn(console, 'error');
     for (const [name, spec] of Object.entries(ROUTES)) {
       if (name === 'getMe') continue;
       const path = spec.path.replace(/\{[A-Za-z]+\}/g, HOUSEHOLD_A);
@@ -255,6 +287,7 @@ describe('staging identity through the Worker fetch entrypoint', () => {
       } as unknown as ExecutionContext),
     ).toThrow('Scheduled jobs are disabled');
     expect(network).not.toHaveBeenCalled();
+    expect(diagnostic).not.toHaveBeenCalled();
   });
 
   it('answers only the permitted GET preflight without database or auth calls', async () => {
@@ -453,6 +486,116 @@ describe('staging identity through the Worker fetch entrypoint', () => {
       expect(network.mock.calls.some(([url]) => String(url).includes('/user_profiles'))).toBe(
         false,
       );
+    },
+  );
+
+  it.each(['rate_limit', 'profile_read', 'membership_read'])(
+    'fails closed without sensitive output for %s failures',
+    async (stage) => {
+      const sensitive = [
+        SERVICE_KEY,
+        PUBLIC_KEY,
+        tokenA,
+        USER_A,
+        HOUSEHOLD_A,
+        'secret-error-body-canary',
+        'select * from private.credentials',
+      ];
+      const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const failure = Response.json({ message: sensitive.join(' ') }, { status: 500 });
+      if (stage === 'rate_limit') rateResponse = failure;
+      else if (stage === 'profile_read') profileResponse = failure;
+      else membershipResponse = failure;
+
+      const response = await request();
+      expect(response.status).toBe(502);
+      const body = await response.text();
+      expect(JSON.parse(body)).toMatchObject({
+        error: {
+          code: 'PROVIDER_UNAVAILABLE',
+          message: 'Staging identity is unavailable',
+        },
+      });
+      expect(diagnostic).not.toHaveBeenCalled();
+      for (const value of sensitive) expect(body).not.toContain(value);
+    },
+  );
+
+  it.each([
+    { scenario: 'network' },
+    { scenario: 'body-stream' },
+    { scenario: 'http', upstreamStatus: 403 },
+    { scenario: 'http-timeout-response', upstreamStatus: 408 },
+    { scenario: 'json' },
+    { scenario: 'validation' },
+    { scenario: 'null-validation' },
+  ])('rejects $scenario RPC failures without sensitive output', async (testCase) => {
+    const sensitive = `${SERVICE_KEY} ${PUBLIC_KEY} ${tokenA} ${USER_A} ${HOUSEHOLD_A} private-body-canary https://private.invalid select private_data`;
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    if (testCase.scenario === 'network') {
+      beforeRate = async () => {
+        const error = new TypeError(sensitive);
+        error.name = sensitive;
+        throw error;
+      };
+    } else if (testCase.scenario === 'body-stream') {
+      beforeRate = async () => {
+        const response = Response.json({ private: sensitive });
+        vi.spyOn(response, 'json').mockRejectedValue(new TypeError(sensitive));
+        return response;
+      };
+    } else if (testCase.upstreamStatus !== undefined) {
+      rateResponse = new Response(sensitive, { status: testCase.upstreamStatus });
+    } else if (testCase.scenario === 'json') {
+      rateResponse = new Response(sensitive, { status: 200 });
+    } else {
+      rateResponse = Response.json(
+        testCase.scenario === 'null-validation'
+          ? null
+          : [{ allowed: sensitive, retry_after_seconds: 60 }],
+      );
+    }
+
+    const response = await request();
+    expect(response.status).toBe(502);
+    const body = await response.text();
+    expect(JSON.parse(body)).toMatchObject({
+      error: { code: 'PROVIDER_UNAVAILABLE', message: 'Staging identity is unavailable' },
+    });
+    expect(diagnostic).not.toHaveBeenCalled();
+    for (const value of sensitive.split(' ')) expect(body).not.toContain(value);
+    expect(network.mock.calls.some(([url]) => String(url).includes('/user_profiles'))).toBe(false);
+  });
+
+  it.each([false, true])(
+    'fails closed on RPC timeout without logging (response received: %s)',
+    async (receivedResponse) => {
+      await request(); // Warm JWKS before using fake timers.
+      vi.useFakeTimers();
+      const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      let started!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      beforeRate = async (signal) => {
+        const body = new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('private-timeout-canary')), {
+            once: true,
+          });
+        });
+        started();
+        if (!receivedResponse) return body;
+        const response = Response.json({ private: 'must-not-leak' });
+        vi.spyOn(response, 'json').mockImplementation(() => body);
+        return response;
+      };
+      const result = request();
+      await pending;
+      await vi.advanceTimersByTimeAsync(10_001);
+      const response = await result;
+      expect(response.status).toBe(502);
+      expect(diagnostic).not.toHaveBeenCalled();
+      expect(await response.text()).not.toContain('private-timeout-canary');
     },
   );
 

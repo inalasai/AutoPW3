@@ -107,10 +107,12 @@ describe('closed value sets equal the database CHECK constraints', () => {
   });
 
   it('lists exactly the audit actions the database allowlist writes', () => {
-    const helper = readFileSync(
-      join(migrationsDir, files.find((f) => f.includes('security_helpers')) as string),
-      'utf8',
-    );
+    // Follow forward migrations: the last definition is the deployed allowlist.
+    const definitions = [
+      ...sql.matchAll(/create or replace function private\.touch_audit\([\s\S]*?\$\$;/g),
+    ];
+    const helper = definitions.at(-1)?.[0];
+    if (!helper) throw new Error('Missing audit allowlist');
     const actions = [...helper.matchAll(/when '([a-z_.]+)' then/g)].map((m) => m[1] as string);
     expect(sorted(actions)).toEqual(sorted(AUDIT_ACTIONS));
   });

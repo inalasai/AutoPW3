@@ -12,8 +12,15 @@ import { permissionsOf, stateFromAccount, stateFromFailure } from './state';
 import type { Permissions } from './state';
 import { isAuthFailure } from './types';
 import type { AuthClient, AuthState } from './types';
+import { TeslaSiteFailure } from './tesla-sites';
+import type { TeslaSiteActions, TeslaSiteActor } from './tesla-sites';
 
 export interface AuthContextValue {
+  /** Staging metadata operations; session credentials never leave the private adapter. */
+  teslaSites: TeslaSiteActions | null;
+  completeTeslaOAuth(
+    completion: { state: string; code: string } | { state: string; error: 'authorization_denied' },
+  ): Promise<void>;
   state: AuthState;
   /** Derived from `state`, which holds only what the server returned. */
   permissions: Permissions;
@@ -130,6 +137,32 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
   }, [sync]);
 
   const value = useMemo<AuthContextValue>(() => {
+    async function siteAction<T>(action: (actor: TeslaSiteActor) => Promise<T>): Promise<T> {
+      const current = () => {
+        const now = stateRef.current;
+        return state.status === 'authorised' &&
+          now.status === 'authorised' &&
+          state.user.id === now.user.id &&
+          state.membership.householdId === now.membership.householdId &&
+          now.membership.role === 'ADMIN'
+          ? { userId: now.user.id, householdId: now.membership.householdId }
+          : null;
+      };
+      const actor = current();
+      if (!actor) throw new TeslaSiteFailure('forbidden');
+      try {
+        const result = await action(actor);
+        if (!current()) throw new TeslaSiteFailure('cancelled');
+        return result;
+      } catch (error) {
+        if (!current()) throw new TeslaSiteFailure('cancelled');
+        if (error instanceof TeslaSiteFailure && error.kind === 'expired_session') {
+          generation.current++;
+          setState({ status: 'expired' });
+        }
+        throw error;
+      }
+    }
     async function run(action: () => Promise<void>): Promise<void> {
       busy.current++;
       try {
@@ -139,6 +172,24 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
       }
     }
     return {
+      teslaSites: client.teslaSites
+        ? {
+            ...(client.teslaSites.connect
+              ? {
+                  connect: (signal?: AbortSignal) =>
+                    siteAction((actor) => client.teslaSites!.connect!(actor, signal)),
+                }
+              : {}),
+            discover: (signal) => siteAction((actor) => client.teslaSites!.discover(actor, signal)),
+            link: (providerSiteId, key, signal) =>
+              siteAction((actor) => client.teslaSites!.link(actor, providerSiteId, key, signal)),
+          }
+        : null,
+      completeTeslaOAuth: (completion) => {
+        if (!client.completeTeslaOAuth)
+          return Promise.reject(new Error('Tesla completion unavailable'));
+        return client.completeTeslaOAuth(completion);
+      },
       state,
       permissions: permissionsOf(state),
       signIn: (email, password) =>

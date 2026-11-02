@@ -1,7 +1,7 @@
 import { normalisePowerReading } from '@autopw3/domain';
 import type { OperationMode, PersistedPowerSample } from '@autopw3/shared';
 import type { TeslaRawEnergyHistory, TeslaRawLiveStatus, TeslaRawSiteInfo } from './raw-types';
-import { teslaJson, TeslaHttpError } from './http';
+import { teslaFetch, teslaJson, TeslaHttpError } from './http';
 import { requireTeslaEnergySiteId } from './live-status';
 import { z } from 'zod';
 import { requireTeslaFleetOrigin } from './region';
@@ -58,7 +58,7 @@ export class TeslaNetworkError extends Error {
 
 export interface DiscoveredSite {
   readonly id: string;
-  readonly siteName: string;
+  readonly siteName: string | null;
   readonly energySiteId: string;
 }
 
@@ -121,8 +121,11 @@ export class TeslaClient implements ITeslaClient {
 
     let res: Response;
     try {
-      res = await this.fetcher(url, { ...init, headers });
+      res = await teslaFetch(url, { ...init, headers }, this.fetcher);
     } catch (err) {
+      if (err instanceof TeslaHttpError && err.status >= 300 && err.status < 400) {
+        throw new TeslaApiError('Tesla redirects are not permitted', err.status, url);
+      }
       throw new TeslaNetworkError(url, err);
     }
 
@@ -179,29 +182,55 @@ export class TeslaClient implements ITeslaClient {
    * Calls GET /api/1/products.
    */
   async listProducts(baseUrl: string, accessToken: string): Promise<readonly DiscoveredSite[]> {
-    const url = `${baseUrl}/api/1/products`;
-    const data = await this.executeRequest<{
-      response?: readonly Record<string, unknown>[];
-    }>(url, accessToken);
-
-    const items = data.response ?? [];
-    const discovered: DiscoveredSite[] = [];
-
-    for (const item of items) {
-      const energySiteId = item['energy_site_id'];
-      if (energySiteId !== undefined && energySiteId !== null) {
-        const idStr = String(energySiteId);
+    const url = `${requireTeslaFleetOrigin(baseUrl)}/api/1/products`;
+    try {
+      const data = z
+        .object({ response: z.array(z.record(z.string(), z.unknown())).max(200) })
+        .safeParse(
+          await teslaJson(
+            url,
+            {
+              method: 'GET',
+              headers: { authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+            },
+            this.fetcher,
+          ),
+        );
+      if (!data.success) throw new TeslaHttpError('INVALID_RESPONSE');
+      const discovered: DiscoveredSite[] = [];
+      const seen = new Set<string>();
+      for (const item of data.data.response) {
+        const value = item['energy_site_id'];
+        if (value === undefined || value === null) continue; // Vehicle products are not sites.
+        let id: string;
+        try {
+          if (typeof value === 'number' && Number.isSafeInteger(value))
+            id = requireTeslaEnergySiteId(String(value));
+          else if (typeof value === 'string') id = requireTeslaEnergySiteId(value);
+          else throw new Error('Invalid identifier');
+        } catch {
+          throw new TeslaHttpError('INVALID_RESPONSE');
+        }
+        if (seen.has(id)) throw new TeslaHttpError('INVALID_RESPONSE');
+        seen.add(id);
         const name =
-          typeof item['site_name'] === 'string' ? item['site_name'] : `Powerwall Site ${idStr}`;
-        discovered.push({
-          id: idStr,
-          siteName: name,
-          energySiteId: idStr,
-        });
+          typeof item['site_name'] === 'string' ? item['site_name'].normalize('NFC').trim() : '';
+        const safeName =
+          name.length > 0 && name.length <= 100 && !/[\p{Cc}\p{Cf}<>]/u.test(name) ? name : null;
+        discovered.push({ id, energySiteId: id, siteName: safeName });
       }
+      return discovered;
+    } catch (error) {
+      if (error instanceof TeslaHttpError) {
+        if (error.status >= 300 && error.status < 400)
+          throw new TeslaApiError('Tesla redirects are not permitted', error.status, 'products');
+        if (error.status === 401) throw new TeslaAuthError('products');
+        if (error.status === 429)
+          throw new TeslaRateLimitError('products', error.retryAfterSeconds);
+        if (error.kind === 'NETWORK') throw new TeslaNetworkError('products');
+      }
+      throw error;
     }
-
-    return discovered;
   }
 
   /**

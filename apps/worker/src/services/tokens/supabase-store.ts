@@ -6,6 +6,12 @@ import { decryptTokenPayload, encryptTokenPayload, type Keyring } from './encryp
 
 type DurableKeySource = string | Uint8Array | Keyring;
 
+export interface OAuthCredentialFence {
+  sessionId: string;
+  sessionExpiresAt: number;
+  leaseOwner: string;
+}
+
 const tokenEnvelopeSchema = z.object({
   householdId: z.string().uuid(),
   tokens: z.object({
@@ -62,6 +68,48 @@ export class SupabaseTokenStore implements TokenStore {
     await this.persistTokens(householdId, tokens);
   }
 
+  /** Stage encrypted provider output only. Activation always uses the actual authenticated JWT. */
+  async stageDiscoveryRefresh(
+    householdId: string,
+    attemptId: string,
+    owner: string,
+    tokens: DecryptedTokens | null,
+  ): Promise<void> {
+    let payload: Record<string, unknown> = { outcome: 'REAUTH' };
+    if (tokens) {
+      const encrypted = await encryptTokenPayload(
+        JSON.stringify({ householdId, tokens }),
+        this.activeKey(),
+        this.activeKeyVersion,
+      );
+      payload = {
+        outcome: 'TOKEN',
+        keyId: `v${encrypted.keyVersion}`,
+        version: encrypted.keyVersion,
+        nonce: toPostgresBytea(fromBase64(encrypted.iv)),
+        ciphertext: toPostgresBytea(fromBase64(encrypted.ciphertext)),
+        scopes: tokens.scope.split(' ').filter(Boolean),
+        region: tokens.regionBaseUrl,
+        expiresAt: new Date(tokens.expiresAt * 1000).toISOString(),
+      };
+    }
+    if (
+      (await this.rpc.call<boolean>('worker_stage_tesla_discovery_refresh', {
+        p_attempt_id: attemptId,
+        p_owner: owner,
+        p_payload: payload,
+      })) !== true
+    )
+      throw new Error('Tesla refresh staging failed');
+  }
+
+  async releaseDiscoveryRefresh(householdId: string, owner: string): Promise<void> {
+    await this.rpc.call<boolean>('worker_release_lock', {
+      p_key: `token:${householdId}`,
+      p_owner: owner,
+    });
+  }
+
   /** Actor is obtained only from authenticated, encrypted, consumed OAuth state. */
   async saveTokensForOAuth(
     householdId: string,
@@ -82,10 +130,26 @@ export class SupabaseTokenStore implements TokenStore {
     );
   }
 
+  /** Staging OAuth only: the database checks the live session and holds both leases through commit. */
+  async saveTokensForFencedOAuth(
+    householdId: string,
+    userId: string,
+    tokens: DecryptedTokens,
+    fence: OAuthCredentialFence,
+  ): Promise<void> {
+    z.string().uuid().parse(userId);
+    z.string().uuid().parse(householdId);
+    z.string().uuid().parse(fence.sessionId);
+    z.string().uuid().parse(fence.leaseOwner);
+    z.number().int().positive().parse(fence.sessionExpiresAt);
+    await this.persistTokens(householdId, tokens, userId, fence);
+  }
+
   private async persistTokens(
     householdId: string,
     tokens: DecryptedTokens,
     userId?: string,
+    fence?: OAuthCredentialFence,
   ): Promise<void> {
     const payload = await encryptTokenPayload(
       JSON.stringify({ householdId, tokens }),
@@ -93,10 +157,21 @@ export class SupabaseTokenStore implements TokenStore {
       this.activeKeyVersion,
     );
     const saved = await this.rpc.call<boolean>(
-      userId ? 'worker_save_tesla_credentials_for_oauth' : 'worker_save_tesla_credentials',
+      fence
+        ? 'worker_save_tesla_credentials_fenced_for_oauth'
+        : userId
+          ? 'worker_save_tesla_credentials_for_oauth'
+          : 'worker_save_tesla_credentials',
       {
         p_household_id: householdId,
         ...(userId ? { p_user_id: userId } : {}),
+        ...(fence
+          ? {
+              p_session_id: fence.sessionId,
+              p_session_expires_at: new Date(fence.sessionExpiresAt * 1000).toISOString(),
+              p_owner: fence.leaseOwner,
+            }
+          : {}),
         p_key_id: `v${payload.keyVersion}`,
         p_nonce: toPostgresBytea(fromBase64(payload.iv)),
         p_ciphertext: toPostgresBytea(fromBase64(payload.ciphertext)),

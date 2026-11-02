@@ -20,12 +20,28 @@
   },
   "env": {
     "staging": {
-      "name": "autopw3-staging",
+      "name": "autopw3-yourname-staging",
+      "assets": {
+        "directory": "../web/dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": ["/api/*"],
+      },
       "vars": {
         "ENVIRONMENT": "staging",
         "LOCAL_MOCKS": "false",
         "PROVIDER_MODE": "mock",
-        "ALLOWED_ORIGINS": "https://staging.autopw3.example.com",
+        "ALLOWED_ORIGINS": "https://staging.example.invalid",
+        "APP_BASE_URL": "https://staging.example.invalid",
+        "STAGING_IDENTITY_READ_ENABLED": "true",
+        "STAGING_TESLA_OAUTH_ENABLED": "true",
+        "STAGING_TESLA_LIVE_STATUS_ENABLED": "false",
+        "STAGING_TESLA_SITES_ENABLED": "true",
+        "TESLA_CLIENT_ID": "YOUR_TESLA_CLIENT_ID",
+        "TESLA_REDIRECT_URI": "https://staging.example.invalid/api/v1/provider/tesla/callback",
+        "TESLA_FLEET_API_BASE_URL": "https://fleet-api.prd.eu.vn.cloud.tesla.com",
+        "SUPABASE_URL": "https://YOUR_PROJECT_REF.supabase.co",
+        "SUPABASE_ANON_KEY": "YOUR_SUPABASE_PUBLIC_KEY",
       },
     },
     "production": {

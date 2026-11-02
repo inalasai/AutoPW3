@@ -26,13 +26,18 @@ describe('generated database types', () => {
     type Functions = Database['public']['Functions'];
     expectTypeOf<keyof Functions>().toEqualTypeOf<
       | 'accept_invitation'
+      | 'begin_tesla_discovery_refresh'
       | 'change_member_role'
       | 'create_invitation'
+      | 'finish_tesla_discovery_refresh'
       | 'leave_household'
+      | 'link_discovered_tesla_site'
       | 'remove_member'
       | 'revoke_invitation'
       | 'set_automation_paused'
       | 'set_rule_mode'
+      | 'tesla_discovery_refresh_context'
+      | 'tesla_site_link_context'
       | 'update_household'
     >();
   });

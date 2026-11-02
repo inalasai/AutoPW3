@@ -7,11 +7,17 @@ import { InMemoryOAuthStateStore, TESLA_TOKEN_URL } from '../providers/tesla/oau
 import { InMemoryTokenStore } from '../services/tokens/store';
 import { SupabaseTokenStore } from '../services/tokens/supabase-store';
 import { getTestAuthKeys } from '../test/jwt-helpers';
+import {
+  oauthBrowserLeaseKey,
+  readOAuthBrowserCookie,
+  TESLA_OAUTH_COOKIE,
+} from './staging-tesla-oauth-cookie';
 
 const A = '11111111-aaaa-4111-8111-111111111111';
 const B = '22222222-bbbb-4222-8222-222222222222';
 const H1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const H2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const SESSION = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const APP = 'https://stage.autopw3.app';
 const EU = 'https://fleet-api.prd.eu.vn.cloud.tesla.com';
 const CALLBACK = '/api/v1/provider/tesla/callback';
@@ -33,6 +39,9 @@ describe('durable staging OAuth through Worker entrypoint', () => {
   let denyFinalSave: boolean;
   let limited: boolean;
   let encryptionKey: Uint8Array;
+  let browserCookie: string | undefined;
+  let leases: Map<string, { owner: string; expiresAt: number }>;
+  let sessionActive: boolean;
 
   async function sign(actor = A, extra: Row = {}) {
     const keys = await getTestAuthKeys();
@@ -43,6 +52,7 @@ describe('durable staging OAuth through Worker entrypoint', () => {
           iss: `${env.SUPABASE_URL}/auth/v1`,
           aud: 'authenticated',
           role: 'authenticated',
+          session_id: SESSION,
           exp: Math.floor(Date.now() / 1000) + 3600,
           ...extra,
         }),
@@ -51,8 +61,14 @@ describe('durable staging OAuth through Worker entrypoint', () => {
       .setProtectedHeader({ alg: 'RS256', kid: 'oauth-test' })
       .sign(keys.privateKey);
   }
-  const request = (path: string, init: RequestInit = {}) =>
-    worker.fetch(new Request(`${APP}${path}`, init), env);
+  const request = async (path: string, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    if (browserCookie && !headers.has('cookie')) headers.set('cookie', browserCookie);
+    const response = await worker.fetch(new Request(`${APP}${path}`, { ...init, headers }), env);
+    const cookie = response.headers.get('set-cookie');
+    if (cookie) browserCookie = cookie.includes('Max-Age=0') ? undefined : cookie.split(';')[0];
+    return response;
+  };
   const connect = (household = H1, token = jwt, body: unknown = {}) =>
     request(connectPath(household), {
       method: 'POST',
@@ -69,8 +85,31 @@ describe('durable staging OAuth through Worker entrypoint', () => {
     const body = (await response.json()) as { authorizeUrl: string };
     return new URL(body.authorizeUrl);
   }
-  const callback = (state: string, extra = 'code=fixture-code') =>
-    request(`${CALLBACK}?state=${state}&${extra}`);
+  const callback = (state: string, extra = 'code=fixture-code') => {
+    const params = new URLSearchParams(extra);
+    return request(CALLBACK, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${jwt}`, origin: APP, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        state,
+        ...(params.has('code') ? { code: params.get('code') } : { error: 'authorization_denied' }),
+      }),
+    });
+  };
+  const callbackFromBrowser = (state: string, cookie?: string) =>
+    worker.fetch(
+      new Request(`${APP}${CALLBACK}`, {
+        method: 'POST',
+        headers: {
+          ...(cookie ? { cookie } : {}),
+          authorization: `Bearer ${jwt}`,
+          origin: APP,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ state, code: 'fixture-code' }),
+      }),
+      env,
+    );
   const count = (suffix: string) =>
     network.mock.calls.filter(([url]) => String(url).endsWith(suffix)).length;
 
@@ -95,6 +134,9 @@ describe('durable staging OAuth through Worker entrypoint', () => {
     jwt = await sign();
     states = new Map();
     credentials = new Map();
+    leases = new Map();
+    sessionActive = true;
+    browserCookie = undefined;
     role = 'ADMIN';
     failure = undefined;
     denyFinalSave = false;
@@ -118,7 +160,7 @@ describe('durable staging OAuth through Worker entrypoint', () => {
       const url = new URL(String(input));
       const json = (value: unknown, status = 200) => Response.json(value, { status });
       if (url.pathname.endsWith('/jwks.json')) return json({ keys: [jwk] });
-      expect(init?.redirect).toBe('error');
+      expect(init?.redirect).toBe('manual');
       expect(init?.signal).toBeInstanceOf(AbortSignal);
       if (url.origin === env.SUPABASE_URL) {
         const headers = new Headers(init?.headers);
@@ -145,6 +187,28 @@ describe('durable staging OAuth through Worker entrypoint', () => {
         switch (url.pathname.split('/').at(-1)) {
           case 'worker_check_rate_limit':
             return json([{ allowed: !limited, retry_after_seconds: 60 }]);
+          case 'worker_begin_tesla_oauth': {
+            if (!sessionActive || body.p_session_id !== SESSION || role !== 'ADMIN')
+              return json(false);
+            const keys = [
+              `staging:tesla:oauth:household:${body.p_household_id}`,
+              await oauthBrowserLeaseKey(String(body.p_user_id)),
+            ];
+            if (
+              !body.p_restart &&
+              keys.some((key) => (leases.get(key)?.expiresAt ?? 0) > Date.now())
+            )
+              return json(false);
+            for (const key of keys)
+              leases.set(key, { owner: String(body.p_owner), expiresAt: Date.now() + 720_000 });
+            return json(true);
+          }
+          case 'worker_release_lock': {
+            const key = String(body.p_key);
+            if (leases.get(key)?.owner !== body.p_owner) return json(false);
+            leases.delete(key);
+            return json(true);
+          }
           case 'worker_save_oauth_state':
             expect(body.p_household_id).toBe(H1);
             expect(body.p_user_id).toBe(A);
@@ -158,13 +222,40 @@ describe('durable staging OAuth through Worker entrypoint', () => {
             return json(true);
           case 'worker_consume_oauth_state': {
             const state = states.get(String(body.p_state));
+            if (!state || Date.parse(String(state.expires_at)) <= Date.now()) return json([]);
             states.delete(String(body.p_state));
-            return json(state && Date.parse(String(state.expires_at)) > Date.now() ? [state] : []);
+            return json([state]);
           }
-          case 'worker_validate_oauth_actor':
-            return json(role === 'ADMIN' && body.p_household_id === H1 && body.p_user_id === A);
-          case 'worker_save_tesla_credentials_for_oauth':
-            if (role !== 'ADMIN' || denyFinalSave) return json({ message: 'not_authorised' }, 403);
+          case 'worker_validate_tesla_oauth_session': {
+            const keys = [
+              `staging:tesla:oauth:household:${body.p_household_id}`,
+              await oauthBrowserLeaseKey(String(body.p_user_id)),
+            ];
+            return json(
+              sessionActive &&
+                body.p_session_id === SESSION &&
+                Date.parse(String(body.p_session_expires_at)) > Date.now() &&
+                role === 'ADMIN' &&
+                body.p_household_id === H1 &&
+                body.p_user_id === A &&
+                keys.every(
+                  (key) =>
+                    leases.get(key)?.owner === body.p_owner &&
+                    leases.get(key)!.expiresAt > Date.now(),
+                ),
+            );
+          }
+          case 'worker_save_tesla_credentials_fenced_for_oauth':
+            if (
+              role !== 'ADMIN' ||
+              !sessionActive ||
+              body.p_session_id !== SESSION ||
+              denyFinalSave ||
+              leases.get(`staging:tesla:oauth:household:${body.p_household_id}`)?.owner !==
+                body.p_owner ||
+              leases.get(await oauthBrowserLeaseKey(String(body.p_user_id)))?.owner !== body.p_owner
+            )
+              return json({ message: 'not_authorised' }, 403);
             expect(body.p_user_id).toBe(A);
             expect(body.p_household_id).toBe(H1);
             credentials.set(String(body.p_household_id), {
@@ -223,10 +314,12 @@ describe('durable staging OAuth through Worker entrypoint', () => {
     expect(authorization.searchParams.get('code_challenge_method')).toBe('S256');
     expect(authorization.searchParams.get('require_requested_scopes')).toBe('true');
     const response = await callback(authorization.searchParams.get('state')!);
-    expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe(`/settings?tesla=connected&hid=${H1}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ connected: true });
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(leases.size).toBe(0);
     const fresh = new SupabaseTokenStore(env.SUPABASE_URL!, serviceKey, encryptionKey);
     const tokens = await fresh.getTokens(H1);
     expect(tokens?.accessToken).toBe(granted.access_token);
@@ -239,10 +332,175 @@ describe('durable staging OAuth through Worker entrypoint', () => {
   it('allows exactly one simultaneous callback and rejects replay', async () => {
     const state = (await start()).searchParams.get('state')!;
     const responses = await Promise.all([callback(state), callback(state)]);
-    expect(responses.map((response) => response.status).sort()).toEqual([302, 422]);
-    expect((await callback(state)).status).toBe(422);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 422]);
+    expect((await callback(state)).status).toBe(403);
     expect(count('/oauth2/v3/token')).toBe(1);
-    expect(count('/worker_save_tesla_credentials_for_oauth')).toBe(1);
+    expect(count('/worker_save_tesla_credentials_fenced_for_oauth')).toBe(1);
+  });
+
+  it('requires a same-browser cookie before any state consumption or other privileged I/O', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    const validCookie = browserCookie!;
+    expect(validCookie.startsWith(`${TESLA_OAUTH_COOKIE}=`)).toBe(true);
+    const [payload, signature] = validCookie.slice(TESLA_OAUTH_COOKIE.length + 1).split('.');
+    const incorrect = `${TESLA_OAUTH_COOKIE}=${payload}.${signature![0] === 'A' ? 'B' : 'A'}${signature!.slice(1)}`;
+    for (const cookie of [
+      undefined,
+      `${TESLA_OAUTH_COOKIE}=incorrect`,
+      incorrect,
+      `${validCookie}; ${validCookie}`,
+    ]) {
+      network.mockClear();
+      const response = await callbackFromBrowser(state, cookie);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toMatchObject({ error: { code: 'VALIDATION_FAILED' } });
+      expect(response.headers.get('set-cookie')).toBeNull();
+      expect(network).not.toHaveBeenCalled();
+      expect(states.has(state)).toBe(true);
+      expect(credentials.size).toBe(0);
+      expect(leases.size).toBe(2);
+    }
+    expect((await callback(state)).status).toBe(200);
+  });
+
+  it('rejects another browser/transaction cookie without canceling the current pending transaction', async () => {
+    const stateA = (await start()).searchParams.get('state')!;
+    const cookieA = browserCookie!;
+    expect((await callback(stateA)).status).toBe(200);
+    const stateB = (await start()).searchParams.get('state')!;
+    const cookieB = browserCookie!;
+    const saved = credentials.get(H1);
+    expect(cookieA).not.toBe(cookieB);
+    network.mockClear();
+    const wrongBrowser = await callbackFromBrowser(stateB, cookieA);
+    expect(wrongBrowser.status).toBe(422);
+    expect(wrongBrowser.headers.has('set-cookie')).toBe(false);
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(stateB)).toBe(true);
+    expect(credentials.get(H1)).toBe(saved);
+    const staleCallback = await callbackFromBrowser(stateA, cookieB);
+    expect(staleCallback.status).toBe(422);
+    expect(staleCallback.headers.has('set-cookie')).toBe(false);
+    expect(network).not.toHaveBeenCalled();
+    expect((await callback(stateB)).status).toBe(200);
+  });
+
+  it('rejects an expired correlation cookie before consuming even a still-present state', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 600_001);
+    network.mockClear();
+    const response = await callback(state);
+    expect(response.status).toBe(422);
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(state)).toBe(true);
+    expect(credentials.size).toBe(0);
+  });
+
+  it('serializes simultaneous initial attempts without cookies and rejects a second pending attempt', async () => {
+    const responses = await Promise.all([connect(), connect()]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(states.size).toBe(1);
+    expect(leases.size).toBe(2);
+    const cookie = browserCookie;
+    const creates = count('/worker_save_oauth_state');
+    const acquires = count('/worker_begin_tesla_oauth');
+    expect((await connect()).status).toBe(409);
+    expect(browserCookie).toBe(cookie);
+    expect(count('/worker_save_oauth_state')).toBe(creates);
+    expect(count('/worker_begin_tesla_oauth')).toBe(acquires + 1);
+    expect(count('/oauth2/v3/token')).toBe(0);
+    expect((await callback([...states.keys()][0]!)).status).toBe(200);
+    expect(leases.size).toBe(0);
+    expect((await connect()).status).toBe(200);
+  });
+
+  it('does not let a concurrent replay release the winning callback lease', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    const cookie = browserCookie!;
+    let unblock!: () => void;
+    let started!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const gateway = network.getMockImplementation()!;
+    network.mockImplementation(async (input, init) => {
+      if (String(input) === TESLA_TOKEN_URL) {
+        started();
+        await gate;
+      }
+      return gateway(input, init);
+    });
+    const winning = callback(state);
+    await entered;
+    try {
+      expect((await callbackFromBrowser(state, cookie)).status).toBe(422);
+      expect(count('/worker_release_lock')).toBe(0);
+      expect(leases.size).toBe(2);
+      const freshBrowser = await request(connectPath(), {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json', cookie: '' },
+        body: '{}',
+      });
+      expect(freshBrowser.status).toBe(409);
+    } finally {
+      unblock();
+      // Finish provider I/O under the mock even if an assertion above fails.
+      await winning;
+    }
+    expect((await winning).status).toBe(200);
+    expect(count('/oauth2/v3/token')).toBe(1);
+    expect(count('/worker_save_tesla_credentials_fenced_for_oauth')).toBe(1);
+    expect(leases.size).toBe(0);
+  });
+
+  it('recovers an abandoned attempt after the bounded lease without accepting its old cookie', async () => {
+    const old = (await start()).searchParams.get('state')!;
+    const cookie = browserCookie!;
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 720_001);
+    const fresh = (await start()).searchParams.get('state')!;
+    expect(fresh).not.toBe(old);
+    expect((await callbackFromBrowser(old, cookie)).status).toBe(422);
+    expect(count('/oauth2/v3/token')).toBe(0);
+    expect((await callback(fresh)).status).toBe(200);
+  });
+
+  it('never exposes correlation, PKCE or Tesla secrets through JSON, errors or logs', async () => {
+    const logs = ['log', 'warn', 'error', 'info'].map((method) =>
+      vi.spyOn(console, method as 'log' | 'warn' | 'error' | 'info'),
+    );
+    const response = await connect(H1, jwt, { enableControls: false });
+    const initiation = await response.text();
+    const state = new URL(
+      (JSON.parse(initiation) as { authorizeUrl: string }).authorizeUrl,
+    ).searchParams.get('state')!;
+    const binding = await readOAuthBrowserCookie(
+      new Request(APP, { headers: { cookie: browserCookie! } }),
+      encryptionKey,
+    );
+    const cookie = browserCookie!;
+    failure = 'token';
+    const terminal = await callback(state);
+    const error = await terminal.text();
+    const exchange = network.mock.calls.find(([url]) => String(url) === TESLA_TOKEN_URL)!;
+    const verifier = new URLSearchParams(String(exchange[1]?.body)).get('code_verifier')!;
+    const visible = `${initiation}${error}${JSON.stringify(logs.map((spy) => spy.mock.calls))}`;
+    for (const secret of [
+      binding!.secret,
+      cookie,
+      verifier,
+      String(granted.access_token),
+      String(granted.refresh_token),
+      env.TESLA_CLIENT_SECRET!,
+    ]) {
+      expect(visible).not.toContain(secret);
+    }
+    expect(terminal.status).toBe(502);
+    expect(terminal.headers.get('set-cookie')).toBeNull();
+    expect(leases.size).toBe(0);
   });
 
   it.each(['READ_ONLY', 'READ_WRITE', null])('denies connect for role %s', async (value) => {
@@ -282,7 +540,7 @@ describe('durable staging OAuth through Worker entrypoint', () => {
     'token',
     'region',
     'worker_consume_oauth_state',
-    'worker_save_tesla_credentials_for_oauth',
+    'worker_save_tesla_credentials_fenced_for_oauth',
   ])('sanitizes %s failures and never persists credentials', async (value) => {
     const state = (await start()).searchParams.get('state')!;
     failure = value;
@@ -324,7 +582,7 @@ describe('durable staging OAuth through Worker entrypoint', () => {
     expect((await callback(state, 'error=access_denied&error_description=private')).status).toBe(
       422,
     );
-    expect((await callback(state)).status).toBe(422);
+    expect((await callback(state)).status).toBe(403);
     const expired = (await start()).searchParams.get('state')!;
     states.get(expired)!.expires_at = new Date(0).toISOString();
     expect((await callback(expired)).status).toBe(422);
@@ -351,6 +609,29 @@ describe('durable staging OAuth through Worker entrypoint', () => {
     expect((await connect()).status).toBe(502);
     expect(states.size).toBe(0);
     expect(count('/oauth2/v3/token')).toBe(0);
+    expect(leases.size).toBe(0);
+    expect(browserCookie).toBeUndefined();
+  });
+
+  it('fails closed when the pending-attempt lease cannot be acquired', async () => {
+    failure = 'worker_begin_tesla_oauth';
+    expect((await connect()).status).toBe(502);
+    expect(states.size).toBe(0);
+    expect(browserCookie).toBeUndefined();
+    expect(count('/oauth2/v3/token')).toBe(0);
+  });
+
+  it('keeps completed credentials safe if owner-matched lease cleanup fails', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    failure = 'worker_release_lock';
+    const response = await callback(state);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(credentials.size).toBe(1);
+    expect(leases.size).toBe(2);
+    expect(browserCookie).toBeDefined();
+    expect((await connect()).status).toBe(409);
+    expect((await connect(H1, jwt, { restart: true })).status).toBe(200);
   });
   it('rejects ciphertext moved to another household before calling Tesla', async () => {
     const state = (await start()).searchParams.get('state')!;
@@ -436,8 +717,223 @@ describe('durable staging OAuth through Worker entrypoint', () => {
   );
   it('rejects callback household/actor overrides and duplicate state', async () => {
     const state = (await start()).searchParams.get('state')!;
-    expect((await callback(state, `code=fixture&householdId=${H2}`)).status).toBe(422);
-    expect((await callback(state, `code=fixture&state=${state}`)).status).toBe(422);
+    expect(
+      (await request(`${CALLBACK}?state=${state}&code=fixture&householdId=${H2}`)).status,
+    ).toBe(422);
+    expect((await request(`${CALLBACK}?state=${state}&code=fixture&state=${state}`)).status).toBe(
+      422,
+    );
     expect(count('/oauth2/v3/token')).toBe(0);
+  });
+
+  it('uses the GET callback only as a same-origin fragment bridge, with no privileged or Tesla I/O', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    network.mockClear();
+    const response = await request(`${CALLBACK}?state=${state}&code=fixture-code`);
+    expect(response.status).toBe(303);
+    const location = new URL(response.headers.get('location')!);
+    expect(location.origin).toBe(APP);
+    expect(location.pathname).toBe('/auth/tesla/callback');
+    expect(location.search).toBe('');
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    expect(fragment.get('tesla_state')).toBe(state);
+    expect(fragment.get('tesla_code')).toBe('fixture-code');
+    for (const reserved of ['state', 'code', 'error', 'error_description'])
+      expect(fragment.has(reserved)).toBe(false);
+    expect(response.headers.has('set-cookie')).toBe(false);
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(state)).toBe(true);
+    expect((await callback(state)).status).toBe(200);
+  });
+
+  it('accepts the exact Tesla issuer without using it to select provider endpoints', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    const params = new URLSearchParams({
+      code: 'fixture-code',
+      issuer: 'https://auth.tesla.com/oauth2/v3',
+      state,
+    });
+    network.mockClear();
+    const response = await request(`${CALLBACK}?${params}`);
+    expect(response.status).toBe(303);
+    const location = new URL(response.headers.get('location')!);
+    expect(location.origin).toBe(APP);
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    expect(fragment.get('tesla_state')).toBe(state);
+    expect(fragment.get('tesla_code')).toBe('fixture-code');
+    expect(fragment.has('issuer')).toBe(false);
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(state)).toBe(true);
+    expect((await callback(state)).status).toBe(200);
+    expect(count('/oauth2/v3/token')).toBe(1);
+    expect(network.mock.calls.some(([url]) => String(url) === TESLA_TOKEN_URL)).toBe(true);
+    expect(count('/api/1/users/region')).toBe(1);
+  });
+
+  it.each([
+    'https://attacker.invalid/oauth2/v3',
+    'https://auth.tesla.com/oauth2/v3/',
+    'http://auth.tesla.com/oauth2/v3',
+    '',
+  ])('rejects a mismatched Tesla issuer %j before privileged or provider I/O', async (issuer) => {
+    const state = (await start()).searchParams.get('state')!;
+    const params = new URLSearchParams({ code: 'fixture-code', state, issuer });
+    network.mockClear();
+    const response = await request(`${CALLBACK}?${params}`);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'VALIDATION_FAILED', message: 'Invalid Tesla callback' },
+    });
+    expect(response.headers.has('set-cookie')).toBe(false);
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(state)).toBe(true);
+    expect(credentials.size).toBe(0);
+  });
+
+  it('rejects duplicate issuer parameters even when both match Tesla', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    const params = new URLSearchParams({
+      code: 'fixture-code',
+      state,
+      issuer: 'https://auth.tesla.com/oauth2/v3',
+    });
+    params.append('issuer', 'https://auth.tesla.com/oauth2/v3');
+    network.mockClear();
+    const response = await request(`${CALLBACK}?${params}`);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      error: { code: 'VALIDATION_FAILED', message: 'Invalid Tesla callback' },
+    });
+    expect(response.headers.has('set-cookie')).toBe(false);
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(state)).toBe(true);
+    expect(credentials.size).toBe(0);
+  });
+
+  it('does not expose Tesla denial as a Supabase Auth error callback', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    network.mockClear();
+    const response = await request(
+      `${CALLBACK}?state=${state}&error=access_denied&error_description=fixture-private-description`,
+    );
+    const destination = new URL(response.headers.get('location')!);
+    const fragment = new URLSearchParams(destination.hash.slice(1));
+    expect(response.status).toBe(303);
+    expect(fragment.get('tesla_error')).toBe('authorization_denied');
+    expect(fragment.has('error')).toBe(false);
+    expect(destination.href).not.toContain('fixture-private-description');
+    expect(network).not.toHaveBeenCalled();
+    expect(states.has(state)).toBe(true);
+  });
+
+  it.each(['logout', 'other_account', 'other_session', 'expired', 'missing_session'])(
+    'rejects %s completion before consuming the transaction or contacting Tesla',
+    async (kind) => {
+      const state = (await start()).searchParams.get('state')!;
+      let token: string | undefined = jwt;
+      if (kind === 'logout') token = undefined;
+      if (kind === 'other_account') token = await sign(B);
+      if (kind === 'other_session') token = await sign(A, { session_id: crypto.randomUUID() });
+      if (kind === 'expired') token = await sign(A, { exp: 1 });
+      if (kind === 'missing_session') token = await sign(A, { session_id: null });
+      const response = await request(CALLBACK, {
+        method: 'POST',
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          origin: APP,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ state, code: 'fixture-code' }),
+      });
+      expect(response.status).toBe(401);
+      expect(response.headers.has('set-cookie')).toBe(false);
+      expect(count('/worker_consume_oauth_state')).toBe(0);
+      expect(count('/oauth2/v3/token')).toBe(0);
+      expect(states.has(state)).toBe(true);
+      expect(credentials.size).toBe(0);
+    },
+  );
+
+  it('rejects a still-unexpired JWT after its Auth session was revoked', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    sessionActive = false;
+    expect((await callback(state)).status).toBe(403);
+    expect(count('/worker_consume_oauth_state')).toBe(0);
+    expect(count('/oauth2/v3/token')).toBe(0);
+    expect(credentials.size).toBe(0);
+  });
+
+  it('accepts token refresh only within the same initiating Auth session', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    jwt = await sign(A, { exp: Math.floor(Date.now() / 1000) + 1800 });
+    expect((await callback(state)).status).toBe(200);
+  });
+
+  it('fences credential persistence if logout happens during the provider request', async () => {
+    const state = (await start()).searchParams.get('state')!;
+    const gateway = network.getMockImplementation()!;
+    network.mockImplementation(async (input, init) => {
+      if (String(input) === TESLA_TOKEN_URL) sessionActive = false;
+      return gateway(input, init);
+    });
+    expect((await callback(state)).status).toBe(502);
+    expect(credentials.size).toBe(0);
+  });
+
+  it('delivers old success, invalid-correlation and replay responses after B without deleting B cookie', async () => {
+    const stateA = (await start()).searchParams.get('state')!;
+    const cookieA = browserCookie!;
+    const invalid = await callbackFromBrowser(stateA);
+    const success = await callback(stateA);
+    const replay = await callbackFromBrowser(stateA, cookieA);
+    const stateB = (await start()).searchParams.get('state')!;
+    const cookieB = browserCookie!;
+    // Model the browser applying delayed response headers after B's initiation Set-Cookie.
+    for (const delayed of [replay, invalid, success]) {
+      const header = delayed.headers.get('set-cookie');
+      if (header) browserCookie = header.includes('Max-Age=0') ? undefined : header.split(';')[0];
+      expect(header).toBeNull();
+      expect(browserCookie).toBe(cookieB);
+    }
+    expect((await callback(stateB)).status).toBe(200);
+  });
+
+  it('explicitly restarts a stale pending attempt without accepting or releasing its old owner', async () => {
+    const stateA = (await start()).searchParams.get('state')!;
+    const cookieA = browserCookie!;
+    expect((await connect()).status).toBe(409);
+    const restarted = await connect(H1, jwt, { restart: true });
+    expect(restarted.status).toBe(200);
+    const stateB = new URL(
+      ((await restarted.json()) as { authorizeUrl: string }).authorizeUrl,
+    ).searchParams.get('state')!;
+    expect((await callbackFromBrowser(stateA, cookieA)).status).toBe(403);
+    expect(leases.size).toBe(2);
+    expect(count('/oauth2/v3/token')).toBe(0);
+    expect((await callback(stateB)).status).toBe(200);
+  });
+
+  it('rejects A delayed persistence after an HTTP failure and successful newer B completion', async () => {
+    const stateA = (await start()).searchParams.get('state')!;
+    const gateway = network.getMockImplementation()!;
+    let late: [RequestInfo | URL, RequestInit | undefined] | undefined;
+    network.mockImplementationOnce(async (input, init) => gateway(input, init));
+    network.mockImplementation(async (input, init) => {
+      if (!late && String(input).endsWith('/worker_save_tesla_credentials_fenced_for_oauth')) {
+        late = [input, init];
+        return Response.json(
+          { message: 'fixture failed response before delayed save' },
+          { status: 503 },
+        );
+      }
+      return gateway(input, init);
+    });
+    expect((await callback(stateA)).status).toBe(502);
+    const stateB = (await start()).searchParams.get('state')!;
+    expect((await callback(stateB)).status).toBe(200);
+    const savedB = credentials.get(H1);
+    expect(late).toBeDefined();
+    expect((await gateway(...late!)).status).toBe(403);
+    expect(credentials.get(H1)).toBe(savedB);
   });
 });

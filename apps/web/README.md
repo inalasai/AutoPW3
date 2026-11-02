@@ -38,3 +38,29 @@ The browser application: routing, layout, feature screens and the design system.
 
 ## Tests
 Component and unit tests live next to code as `*.test.tsx`. End-to-end tests are in [`../../e2e`](../../e2e/README.md). See [`../../docs/TESTING.md`](../../docs/TESTING.md).
+
+**Staging OAuth completion status:** Only a `--mode staging` build includes `/auth/tesla/callback`.
+It removes the callback fragment from history, then asks the auth adapter to POST to the same-origin
+Worker with the current session and HttpOnly correlation cookie. It never calls Tesla or stores
+Tesla credentials/codes. Staging logout and account switching confirm remote revocation of the old
+session before local cleanup or new sign-in. A revocation failure is reported and does not complete
+the action. Production auth behaviour is unchanged. The Worker and database remain authoritative.
+
+**Staging Tesla site setup status:** The staging Supabase adapter privately authenticates manual
+discovery and linking from Settings. Its Tesla card uses the discovery and persisted link responses,
+never the demo ACTIVE status. Only the current household ADMIN can operate it; the Worker and database
+independently authorize every request. A link retry retains its idempotency key after an uncertain
+response. Reloading the page clears the local result; rediscovery and linking safely return an existing
+site through backend duplicate protection. There is no automatic polling, OAuth restart, telemetry or
+control request. Other incomplete household settings endpoints remain outside this integration.
+
+Status: the staging build uses real Supabase authentication with explicitly synthetic DEMO telemetry.
+Verify using `npm run build --workspace @autopw3/web -- --mode staging`, then
+`node scripts/verify-staging-build.mjs` and `npx playwright test --config playwright.staging.config.ts`.
+The built-browser fixture intercepts every request; no real credentials/provider access are used.
+# Team environment examples
+
+Status: `.env.example` defaults to credential-free DEMO development; `.env.staging.example` contains
+only placeholders for your own approved project. Copy to ignored local files. The Tesla public-key
+asset is a portable placeholder; an operator must supply their own public key for a separate approved
+deployment. See [team development](../../docs/TEAM_DEVELOPMENT.md).

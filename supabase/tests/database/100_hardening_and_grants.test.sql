@@ -40,10 +40,10 @@ select is(
   (select string_agg(n.nspname || '.' || p.proname, ', ' order by n.nspname, p.proname)
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('public', 'private') and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  'private.has_role_at_least, private.is_member, public.accept_invitation, public.change_member_role, '
-    || 'public.create_invitation, public.leave_household, public.remove_member, public.revoke_invitation, '
-    || 'public.set_automation_paused, public.set_rule_mode, public.update_household',
-  'authenticated can execute exactly the two policy helpers and the nine authenticated RPC functions'
+  'private.has_role_at_least, private.is_member, public.accept_invitation, public.begin_tesla_discovery_refresh, public.change_member_role, '
+    || 'public.create_invitation, public.finish_tesla_discovery_refresh, public.leave_household, public.link_discovered_tesla_site, public.remove_member, public.revoke_invitation, '
+    || 'public.set_automation_paused, public.set_rule_mode, public.tesla_discovery_refresh_context, public.tesla_site_link_context, public.update_household',
+  'authenticated can execute exactly the two policy helpers and the fourteen authenticated RPC functions'
 );
 select ok(
   has_function_privilege('service_role', 'private.bootstrap_first_admin(text, text, text)', 'EXECUTE'),

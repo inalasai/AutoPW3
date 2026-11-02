@@ -15,6 +15,9 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import EmbeddedPostgres from 'embedded-postgres';
 import pg from 'pg';
+import { verifyTeslaSiteLinkConcurrency } from './db/tesla-site-link-concurrency.mjs';
+import { verifyTeslaDiscoveryRefreshConcurrency } from './db/tesla-discovery-refresh-concurrency.mjs';
+import { verifyTeslaRefreshMigrationAtomicity } from './db/tesla-refresh-migration-atomicity.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const migrationsDir = join(root, 'supabase', 'migrations');
@@ -240,6 +243,112 @@ async function verifyConcurrentOAuthConsumption(client) {
   }
 }
 
+// A client can see an HTTP failure while its server transaction is still committing.
+// Prove a reconnect waits for that transaction, then permanently fences its old owner.
+async function verifyConcurrentOAuthFencing(client) {
+  const first = await connect('security_tests');
+  const second = await connect('security_tests');
+  const session = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const ownerA = crypto.randomUUID();
+  const ownerB = crypto.randomUUID();
+  const beginSql = `select public.worker_begin_tesla_oauth(tests.id('h1'),tests.id('alice'),$1,
+    now()+interval '1 hour',$2,$3) as acquired`;
+  const saveSql = `select public.worker_save_tesla_credentials_fenced_for_oauth(
+    tests.id('h1'),tests.id('alice'),$1,now()+interval '1 hour',$2,'v1',
+    decode(repeat('00',12),'hex'),decode(repeat($3,17),'hex'),1,
+    array['openid','offline_access','energy_device_data'],
+    'https://fleet-api.prd.eu.vn.cloud.tesla.com',now()+interval '1 hour')`;
+  let pending;
+  const waitForLock = async (pid) => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const activity = await client.query(
+        'select wait_event_type from pg_stat_activity where pid=$1',
+        [pid],
+      );
+      if (activity.rows[0]?.wait_event_type === 'Lock') return;
+      await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+    }
+    throw new Error('Expected OAuth transaction row-lock wait was not observed');
+  };
+  try {
+    // The preceding concurrency test commits its fixtures; start with an independent world.
+    await client.query('delete from public.households where id in (select id from tests.fx)');
+    await client.query('delete from auth.users where id in (select id from tests.fx)');
+    await client.query('select tests.world()');
+    await client.query("insert into auth.sessions(id,user_id) values($1,tests.id('alice'))", [
+      session,
+    ]);
+    await first.query('begin');
+    await first.query('set local role service_role');
+    await first.query(beginSql, [session, ownerA, false]);
+    await first.query('commit');
+    await first.query('begin');
+    await first.query('set local role service_role');
+    await first.query(saveSql, [session, ownerA, 'aa']);
+    // HTTP failure has been reported to A, but this transaction has not committed.
+    await second.query('begin');
+    await second.query('set local role service_role');
+    const pid = (await second.query('select pg_backend_pid() as pid')).rows[0].pid;
+    pending = second.query(beginSql, [session, ownerB, true]);
+    await waitForLock(pid);
+    await first.query('commit');
+    if ((await pending).rows[0]?.acquired !== true)
+      throw new Error('Authorized reconnect did not acquire fence');
+    pending = undefined;
+    // Initiation and callback are separate HTTP transactions in the real runtime.
+    await second.query('commit');
+    let denied = false;
+    try {
+      await first.query(saveSql, [session, ownerA, 'aa']);
+    } catch (error) {
+      if (error.code !== '42501') throw error;
+      denied = true;
+    }
+    if (!denied) throw new Error('Superseded owner was not fenced while newer save was pending');
+    await second.query('begin');
+    await second.query('set local role service_role');
+    await second.query(saveSql, [session, ownerB, 'bb']);
+    const firstPid = (await first.query('select pg_backend_pid() as pid')).rows[0].pid;
+    pending = first.query('delete from auth.sessions where id=$1', [session]);
+    await waitForLock(firstPid);
+    // Logout cannot acknowledge session deletion until the already-authorized save commits.
+    await second.query('commit');
+    if ((await pending).rowCount !== 1) throw new Error('Session logout did not delete its row');
+    pending = undefined;
+    const saved = await client.query(
+      `select encode(ciphertext,'hex') as value from public.tesla_credentials where household_id=tests.id('h1')`,
+    );
+    if (!denied || saved.rows[0]?.value !== 'bb'.repeat(17))
+      throw new Error('Delayed old save overwrote newer credentials');
+    totalOk += 1;
+    console.log(
+      'ok    OAuth fencing: delayed commit after HTTP failure precedes reconnect; stale save denied',
+    );
+    let loggedOut = false;
+    try {
+      await second.query(saveSql, [session, ownerB, 'bb']);
+    } catch (error) {
+      if (error.code !== '42501') throw error;
+      loggedOut = true;
+    }
+    if (!loggedOut) throw new Error('Logged-out session persisted credentials');
+    totalOk += 1;
+    console.log(
+      'ok    OAuth session logout: deletion waits for prior save; no save after logout acknowledgement',
+    );
+  } finally {
+    // Either client can be waiting for the other's lock; enqueue both rollbacks together.
+    await Promise.all([first.query('rollback'), second.query('rollback')]);
+    if (pending) await pending.catch(() => undefined);
+    await first.end();
+    await second.end();
+    await client.query('select tests.clear()');
+    await client.query('delete from public.households where id in (select id from tests.fx)');
+    await client.query('delete from auth.users where id in (select id from tests.fx)');
+    await client.query('delete from tests.fx');
+  }
+}
+
 // Rows of every statement result, flattened to the TAP lines they contain.
 function tapLines(result) {
   const results = Array.isArray(result) ? result : [result];
@@ -284,7 +393,16 @@ try {
   await client.query(shimSql);
   for (const file of migrationFiles) {
     try {
-      await client.query(readFileSync(join(migrationsDir, file), 'utf8'));
+      const migrationSql = readFileSync(join(migrationsDir, file), 'utf8');
+      const atomicityChecks = await verifyTeslaRefreshMigrationAtomicity(
+        client,
+        file,
+        migrationSql,
+      );
+      totalOk += atomicityChecks;
+      if (atomicityChecks)
+        console.log(`ok    ${file}: ${atomicityChecks} atomic installation checks`);
+      await client.query(migrationSql);
     } catch (err) {
       console.error(`FAIL  migration ${file}: ${err.message}`);
       throw err;
@@ -344,7 +462,35 @@ try {
     console.error(`FAIL  concurrent OAuth callbacks: ${err.message}`);
   }
 
-  // The policies in the database must equal the manifest in docs/RLS_POLICY_MATRIX.md.
+  try {
+    const linkChecks = await verifyTeslaSiteLinkConcurrency(client, connect);
+    totalOk += linkChecks;
+    console.log(
+      `ok    concurrent Tesla linking: replay, uniqueness and post-lock expiry (${linkChecks} checks)`,
+    );
+  } catch (err) {
+    hardFailures += 1;
+    console.error(`FAIL  concurrent Tesla site linking: ${err.message}`);
+  }
+
+  try {
+    const refreshChecks = await verifyTeslaDiscoveryRefreshConcurrency(client, connect);
+    totalOk += refreshChecks;
+    console.log(
+      `ok    concurrent Tesla refresh: ${refreshChecks} real claim/commit/revocation/revision/deadline races`,
+    );
+  } catch (err) {
+    hardFailures += 1;
+    console.error(`FAIL  concurrent Tesla discovery refresh: ${err.message}`);
+  }
+
+  try {
+    await verifyConcurrentOAuthFencing(client);
+  } catch (err) {
+    hardFailures += 1;
+    console.error(`FAIL  concurrent OAuth persistence fencing: ${err.message}`);
+  }
+
   try {
     const expected = readManifest();
     const actual = (

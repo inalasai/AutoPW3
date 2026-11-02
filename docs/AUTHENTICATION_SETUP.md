@@ -1,5 +1,9 @@
 # Authentication Setup
 
+Current complete setup and verified boundaries are in [DEVELOPER_SETUP.md](DEVELOPER_SETUP.md) and
+the [staging integration handoff](handoffs/TESLA-STAGING-INTEGRATION.md). Original TASK-07 verification
+statements below are historical; they do not supersede the completed staging validation.
+
 **Status:** written in TASK-07. The web app signs people in with Supabase Auth through `apps/web/src/features/auth`. **No real Supabase project has been connected yet**, so every setting below is `UNVERIFIED` until the owner configures a project and runs the manual checklist at the end (`AWAITING_CREDENTIALS`).
 
 Related: [`SECURITY_MODEL.md`](SECURITY_MODEL.md), [`RLS_POLICY_MATRIX.md`](RLS_POLICY_MATRIX.md), [`CREDENTIALS.md`](CREDENTIALS.md), [`DEVELOPMENT_SETUP.md`](DEVELOPMENT_SETUP.md).

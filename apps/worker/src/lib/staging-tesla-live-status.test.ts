@@ -144,7 +144,7 @@ describe('manually triggered durable staging Tesla live status', () => {
     network = vi.fn(async (input, init) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith('/jwks.json')) return Response.json({ keys: [jwk] });
-      expect(init?.redirect).toBe('error');
+      expect(init?.redirect).toBe('manual');
       expect(init?.signal).toBeInstanceOf(AbortSignal);
       if (url.origin === env.SUPABASE_URL) {
         if (failure === 'database') throw new Error('private database diagnostic');
